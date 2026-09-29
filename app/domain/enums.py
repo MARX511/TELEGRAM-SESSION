@@ -160,6 +160,7 @@ class AuditAction(StrEnum):
     RESPONSE_RECEIVED = "Response Received"
     CASE_CLOSED = "Case Closed"
     SESSION_DISCOVERED = "Session Discovered"
+    SESSION_UPLOADED = "Session Uploaded"
     SESSION_CHECKED = "Session Checked"
     SESSION_MOVED = "Session Moved"
     SESSION_QUARANTINED = "Session Quarantined"

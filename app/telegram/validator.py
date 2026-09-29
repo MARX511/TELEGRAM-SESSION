@@ -39,6 +39,32 @@ class SessionValidator(Protocol):
     async def check(self, file_path: Path, proxy: ProxySpec | None = None) -> CheckResult: ...
 
 
+PROBLEM_TELETHON_MISSING = "telethon_missing"
+PROBLEM_CREDENTIALS_MISSING = "credentials_missing"
+PROBLEM_STILL_SIMULATION = "credentials_set_but_simulation"
+
+
+def provider_status(settings=None) -> dict:
+    """What the dashboard shows about session checking: simulated or real, and what blocks real checks."""
+    import importlib.util
+
+    from app.config import get_settings
+
+    s = settings or get_settings()
+    has_credentials = bool(s.telegram_api_id and s.telegram_api_hash)
+    problems: list[str] = []
+    if s.telegram_provider == "telethon":
+        if importlib.util.find_spec("telethon") is None:
+            problems.append(PROBLEM_TELETHON_MISSING)
+        if not has_credentials:
+            problems.append(PROBLEM_CREDENTIALS_MISSING)
+    elif has_credentials:
+        problems.append(PROBLEM_STILL_SIMULATION)
+    real = s.telegram_provider == "telethon"
+    return {"provider": s.telegram_provider, "real": real, "ready": real and not problems,
+            "has_credentials": has_credentials, "problems": problems}
+
+
 def get_validator(provider: str | None = None) -> SessionValidator:
     from app.config import get_settings
 

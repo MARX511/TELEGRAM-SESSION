@@ -12,6 +12,55 @@
   {% endif %}
 {% endcall %}
 
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-5">
+  {% if has_permission(user, rbac.P_SESSIONS_WRITE) %}
+  <form method="post" action="/sessions/upload" enctype="multipart/form-data" class="card reveal xl:col-span-2" data-upload
+        data-more="{{ _('and {n} more') }}">
+    <div class="card-title">{{ icon('upload') }}{{ _('Upload session files') }}</div>
+    <label class="dropzone" data-dropzone>
+      <input type="file" name="files" multiple accept=".session,.zip" required aria-label="{{ _('Upload session files') }}">
+      <span class="dropzone-icon">{{ icon('upload') }}</span>
+      <span class="dropzone-title">{{ _('Drop .session files or a .zip here, or click to choose') }}</span>
+      <span class="dropzone-hint">{{ _('One file per account (Telethon or Pyrogram), up to {mb} MB each. Every file is checked before it is saved to sessions/active; duplicates are skipped.').format(mb=upload_limit_mb) }}</span>
+      <span class="dropzone-files" data-upload-list aria-live="polite"></span>
+    </label>
+    <div class="flex flex-wrap items-center justify-between gap-3 mt-3">
+      {% if has_permission(user, rbac.P_SESSIONS_CHECK) %}
+      <label class="flex items-center gap-2 text-sm muted"><input type="checkbox" name="check" value="1" class="checkbox" checked>{{ _('Run a health check after upload') }}</label>
+      {% else %}<span></span>{% endif %}
+      <button class="btn btn-primary" data-busy-text="{{ _('Uploading…') }}">{{ icon('upload') }}<span>{{ _('Upload') }}</span></button>
+    </div>
+  </form>
+  {% endif %}
+  {% set tone = 'ok' if provider.ready else ('bad' if provider.real else 'warn') %}
+  <div class="card reveal provider-card tone-{{ tone }}{% if not has_permission(user, rbac.P_SESSIONS_WRITE) %} xl:col-span-3{% endif %}" style="--i:1">
+    <div class="card-title">{{ icon('shield-check' if provider.ready else 'circle-alert') }}{{ _('Check mode') }}
+      <span class="badge tone-{{ tone }} ms-auto">{{ _('Real (Telethon)') if provider.real else _('Simulation') }}</span></div>
+    {% if provider.ready %}
+    <p class="text-sm">{{ _('Checks are real: each account is connected only to confirm it is authorised, then disconnected.') }}</p>
+    {% elif provider.real %}
+    <p class="text-sm">{{ _('Real checks are switched on but cannot run yet:') }}</p>
+    <ul class="provider-steps">
+      {% if 'telethon_missing' in provider.problems %}<li>{{ _('The telethon library is not installed. Run the launcher again (run_windows.bat); it installs it automatically.') }}</li>{% endif %}
+      {% if 'credentials_missing' in provider.problems %}<li>{{ _('Add TELEGRAM_API_ID and TELEGRAM_API_HASH to the .env file, then restart.') }}</li>{% endif %}
+    </ul>
+    {% else %}
+    <p class="text-sm">{{ _('Results are simulated for testing and do not come from Telegram.') }}</p>
+    <ul class="provider-steps">
+      {% if 'credentials_set_but_simulation' in provider.problems %}
+      <li>{{ _('Your API ID and API hash are in .env, but this line still says simulation. Change it to:') }} <code class="ltr">TELEGRAM_PROVIDER=telethon</code></li>
+      {% else %}
+      <li>{{ _('Put these lines in the .env file:') }}
+        <pre class="env-snippet" dir="ltr">TELEGRAM_PROVIDER=telethon
+TELEGRAM_API_ID=…
+TELEGRAM_API_HASH=…</pre></li>
+      {% endif %}
+      <li>{{ _('Then close the window and run the launcher again (run_windows.bat).') }}</li>
+    </ul>
+    {% endif %}
+  </div>
+</div>
+
 <div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3 mb-5">
   {{ stat(_('Total'), stats.total, 'accent2', 'layers', 0) }}
   {{ stat(L('ACTIVE'), stats.active, 'ok', 'zap', 1) }}

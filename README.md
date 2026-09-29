@@ -35,6 +35,23 @@ python scripts/make_env.py                 # writes .env (SQLite + fresh secrets
 ```
 Docker: `docker compose up` (PostgreSQL + Redis + app). Tests: `.venv/bin/pytest`. Benchmark: `python -m benchmarks --db <scratch-db-url>`.
 
+## Session files
+- **Upload** from the Sessions page (drag `.session` files or a `.zip` of them onto the upload box) or
+  `POST /api/v1/sessions/upload`. Each file must be a Telethon or Pyrogram session database; it is validated,
+  de-duplicated by content, saved to `sessions/active` under a safe name (encrypted at rest when
+  `SESSION_FILE_ENCRYPTION_KEY` is set) and registered. ZIP members are extracted by basename only, with size caps.
+- Or copy files into `sessions/active` yourself and press **Scan folder**.
+- **Check mode:** `TELEGRAM_PROVIDER=simulation` (default) produces simulated results. For real checks set
+  `TELEGRAM_PROVIDER=telethon`, `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` (from my.telegram.org) in `.env` and run the
+  launcher again: it installs `telethon` automatically. The Sessions page shows which mode is active and what is missing.
+
+## Official email submissions
+With `SUBMISSION_EMAIL_ENABLED=true` and `SMTP_HOST`, `SMTP_PORT` (587 STARTTLS or 465 TLS), `SMTP_USER`,
+`SMTP_PASSWORD`, `SMTP_FROM`, an approved case can be sent once to an allow-listed Telegram address
+(abuse@ / dmca@ / stopCA@telegram.org), with the case's file evidence attached after an integrity check (15 MB total).
+Without SMTP an `.eml` file with the same content is written to `exports/` for you to send from your own mailbox.
+Replies arrive in that mailbox; record them on the case (**Record response**) to move it to Completed or Failed.
+
 ## Dashboard
 - **Arabic (RTL) by default, English (LTR)** with the language button in the top bar; the choice is kept in a `lang`
   cookie. UI strings live in `app/web/i18n.py` (English keys → Arabic); a test fails if a template string has no

@@ -80,7 +80,7 @@ AR_LABELS: dict[str, str] = {
     "Evidence Verified": "التحقق من دليل", "Reason Changed": "تغيير السبب", "Draft Generated": "توليد المسودة",
     "Draft Edited": "تعديل المسودة", "Approval Granted": "منح الاعتماد", "Submission Created": "إنشاء تسليم",
     "Submission Sent": "إرسال تسليم", "Response Received": "استلام رد", "Case Closed": "إغلاق قضية",
-    "Session Discovered": "اكتشاف جلسة", "Session Checked": "فحص جلسة", "Session Moved": "نقل جلسة",
+    "Session Discovered": "اكتشاف جلسة", "Session Uploaded": "رفع جلسات", "Session Checked": "فحص جلسة", "Session Moved": "نقل جلسة",
     "Session Quarantined": "حجر جلسة", "Proxy Checked": "فحص بروكسي", "Export Created": "إنشاء تصدير",
     "Backup Created": "إنشاء نسخة احتياطية", "Backup Restored": "استعادة نسخة احتياطية", "Login": "تسجيل دخول",
     "Login Failed": "فشل تسجيل الدخول", "User Created": "إنشاء مستخدم", "Settings Changed": "تغيير الإعدادات",
@@ -201,7 +201,6 @@ AR: dict[str, str] = {
     "Any location": "كل المواقع", "Filter": "تصفية", "File": "الملف", "User": "المستخدم", "Last check": "آخر فحص",
     "Failures": "الإخفاقات", "Availability": "التوافر", "Last error": "آخر خطأ", "Actions": "الإجراءات",
     "Encrypted at rest": "مشفّر أثناء التخزين", "Check": "فحص", "Disable": "تعطيل", "Enable": "تفعيل", "Quarantine": "حجر",
-    "No sessions. Put .session files under sessions/active and scan.": "لا توجد جلسات. ضع ملفات ‎.session‎ في المجلد sessions/active ثم افحص.",
     "Scan complete: {found} found, {new} new, {missing} missing": "اكتمل الفحص: {found} ملفًا، منها {new} جديدة، و{missing} مفقودة",
     "{n} health checks queued": "أُضيفت {n} فحوص صحية إلى قائمة الانتظار",
     "{file}: {status}": "{file}: {status}", "{file} disabled": "عُطّلت الجلسة {file}",
@@ -289,4 +288,45 @@ AR: dict[str, str] = {
     "Error: {message}": "خطأ: {message}", "Unknown action": "إجراء غير معروف",
     "Permission '{perm}' is required": "هذا الإجراء يتطلب الصلاحية «{perm}»",
     "Backup created: {file}": "أُنشئت النسخة الاحتياطية: {file}",
+    # session upload
+    "Upload session files": "رفع ملفات الجلسات",
+    "Drop .session files or a .zip here, or click to choose": "اسحب ملفات ‎.session‎ أو ملف ‎.zip‎ إلى هنا، أو اضغط للاختيار",
+    "One file per account (Telethon or Pyrogram), up to {mb} MB each. Every file is checked before it is saved to sessions/active; duplicates are skipped.":
+        "ملف واحد لكل حساب (Telethon أو Pyrogram)، حتى {mb} ميغابايت للملف. يُفحص كل ملف قبل حفظه في sessions/active، والملفات المكرّرة تُتجاهل.",
+    "Run a health check after upload": "افحص صحتها بعد الرفع",
+    "Upload": "رفع", "Uploading…": "جارٍ الرفع…", "and {n} more": "و{n} ملفات أخرى",
+    "Choose .session files or a .zip to upload": "اختر ملفات ‎.session‎ أو ملف ‎.zip‎ للرفع",
+    "Upload finished: {added} added, {dup} already registered, {bad} rejected":
+        "انتهى الرفع: أُضيفت {added}، و{dup} مسجّلة من قبل، ورُفض {bad}",
+    "No sessions yet. Upload .session files above, or put them under sessions/active and scan.":
+        "لا توجد جلسات بعد. ارفع ملفات ‎.session‎ من الأعلى، أو ضعها في المجلد sessions/active ثم اضغط «فحص المجلد».",
+    "only .session files or a .zip of them are accepted": "تُقبل ملفات ‎.session‎ أو ملف ‎.zip‎ يحتويها فقط",
+    "file is too large": "الملف كبير جدًا",
+    "not a Telethon or Pyrogram session file": "ليس ملف جلسة Telethon أو Pyrogram",
+    "not a readable ZIP archive": "ملف ZIP تالف أو محمي بكلمة مرور",
+    "the ZIP contains no .session files": "ملف ZIP لا يحتوي على ملفات ‎.session‎",
+    # check mode (validation provider)
+    "Check mode": "وضع الفحص", "Real (Telethon)": "حقيقي (Telethon)", "Simulation": "محاكاة",
+    "ready": "جاهز", "not ready": "غير جاهز",
+    "Checks are real: each account is connected only to confirm it is authorised, then disconnected.":
+        "الفحص حقيقي: يتصل بكل حساب فقط للتأكد أنه يعمل، ثم يقطع الاتصال.",
+    "Real checks are switched on but cannot run yet:": "الفحص الحقيقي مفعّل لكنه لا يستطيع العمل بعد:",
+    "The telethon library is not installed. Run the launcher again (run_windows.bat); it installs it automatically.":
+        "مكتبة telethon غير مثبّتة. أغلق النافذة وشغّل المشغّل من جديد (run_windows.bat) وسيثبّتها تلقائيًا.",
+    "Add TELEGRAM_API_ID and TELEGRAM_API_HASH to the .env file, then restart.":
+        "أضف TELEGRAM_API_ID و TELEGRAM_API_HASH إلى ملف ‎.env‎ ثم أعد التشغيل.",
+    "Results are simulated for testing and do not come from Telegram.": "النتائج تجريبية للاختبار، وليست من تيليجرام.",
+    "Your API ID and API hash are in .env, but this line still says simulation. Change it to:":
+        "وجدنا API ID و API hash في ملف ‎.env‎، لكن هذا السطر ما زال على simulation. غيّره إلى:",
+    "Put these lines in the .env file:": "ضع هذه الأسطر في ملف ‎.env‎:",
+    "Then close the window and run the launcher again (run_windows.bat).": "ثم أغلق النافذة وشغّل المشغّل من جديد (run_windows.bat).",
+    # official submission guidance
+    "Official email: sent once to the official Telegram address you choose, with the file evidence attached.":
+        "البريد الرسمي: يُرسل البلاغ مرة واحدة إلى عنوان تيليجرام الرسمي الذي تختاره، مع ملفات الأدلة مرفقة.",
+    "Email is not set up yet, so an .eml file is created in the exports folder for you to send from your own mailbox.":
+        "البريد غير مضبوط بعد، لذلك يُنشأ ملف ‎.eml‎ في مجلد exports لترسله من بريدك.",
+    "Manual / official portal: you file the report yourself with the report button in the Telegram app or at telegram.org/support, then confirm it here with the reference.":
+        "يدوي أو بوابة رسمية: تقدّم البلاغ بنفسك من زر الإبلاغ في تطبيق تيليجرام أو من telegram.org/support، ثم تؤكّده هنا بالرقم المرجعي.",
+    "Telegram usually does not answer each report individually. If the target is removed or restricted (its link shows it is unavailable), record the response as Accepted; the case then moves to Completed.":
+        "تيليجرام لا يرد غالبًا على كل بلاغ بشكل منفصل. إذا حُذف الهدف أو قُيّد (يظهر رابطه غير متاح)، سجّل الرد «مقبول» فتنتقل القضية إلى «مكتمل».",
 }

@@ -120,6 +120,52 @@
   document.addEventListener("focusout", hideTip);
   window.addEventListener("scroll", hideTip, { passive: true });
 
+  /* ---------- session upload: drag highlight, chosen-file chips, busy state ---------- */
+  function sizeLabel(bytes) {
+    if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`;
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+  function showChosen(form) {
+    const input = form.querySelector('input[type="file"]');
+    const list = form.querySelector("[data-upload-list]");
+    if (!input || !list) return;
+    list.textContent = "";
+    const files = Array.from(input.files || []);
+    files.slice(0, 6).forEach((f) => {
+      const chip = document.createElement("span");
+      chip.className = "file-chip";
+      chip.textContent = `${f.name} · ${sizeLabel(f.size)}`;
+      list.appendChild(chip);
+    });
+    if (files.length > 6) {
+      const more = document.createElement("span");
+      more.className = "file-chip";
+      more.textContent = (form.getAttribute("data-more") || "+{n}").replace("{n}", String(files.length - 6));
+      list.appendChild(more);
+    }
+  }
+  document.addEventListener("change", (e) => {
+    const form = e.target.closest("[data-upload]");
+    if (form && e.target.type === "file") showChosen(form);
+  });
+  ["dragenter", "dragover"].forEach((type) => document.addEventListener(type, (e) => {
+    const zone = e.target.closest && e.target.closest("[data-dropzone]");
+    if (zone) zone.classList.add("dragging");
+  }));
+  ["dragleave", "drop"].forEach((type) => document.addEventListener(type, (e) => {
+    const zone = e.target.closest && e.target.closest("[data-dropzone]");
+    if (zone && (type === "drop" || !zone.contains(e.relatedTarget))) zone.classList.remove("dragging");
+  }));
+  document.addEventListener("submit", (e) => {
+    const form = e.target.closest("[data-upload]");
+    if (!form) return;
+    const btn = form.querySelector("[data-busy-text]");
+    if (!btn) return;
+    btn.setAttribute("aria-busy", "true");
+    const label = btn.querySelector("span");
+    if (label) label.textContent = btn.getAttribute("data-busy-text");
+  });
+
   /* ---------- init (also after htmx swaps) ---------- */
   function init(scope) {
     if (!reduceMotion && finePointer) scope.querySelectorAll("[data-tilt]").forEach(bindTilt);
