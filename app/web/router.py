@@ -446,6 +446,12 @@ async def case_action(request: Request, case_id: str, action: str, to_status: st
         elif action == "evidence-zip":
             rec = await export_service.export_evidence_zip(db, case, actor=user.username)
             msg = t("Evidence package created: {file}", file=os.path.basename(rec.file_path))
+        elif action == "dossier":
+            if not rbac.has_permission(user, rbac.P_REPORTS_EXPORT):
+                return redirect(f"/cases/{case.id}", t("Permission '{perm}' is required", perm=rbac.P_REPORTS_EXPORT), error=True)
+            rec = await export_service.export_case_dossier(db, case, actor=user.username)
+            await db.commit()
+            return RedirectResponse(f"/api/v1/exports/{rec.id}/download", status_code=303)
         elif action == "verify-evidence":
             res = await evidence_service.verify_case_evidence(db, case, actor=user.username)
             msg = t("Evidence verified: {ok} of {total} intact", ok=res["ok"], total=res["total"])

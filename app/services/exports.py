@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import csv
 import io
+import json
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,12 +13,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
-from app.db.models import (AuditLog, Case, ErrorRecord, Evidence, ExportRecord, Submission, Target, TelegramSession)
+from app.db.models import (AuditLog, Case, CaseEvent, ErrorRecord, Evidence, ExportRecord, Submission, Target,
+                           TelegramSession)
 from app.domain.enums import AuditAction
 from app.services.audit import record_audit
 from app.services.errors import ValidationFailed
 from app.services.evidence import build_evidence_package, list_evidence
-from app.utils import dumps, loads, sha256_file
+from app.utils import dumps, loads, sha256_bytes as _sha256_bytes, sha256_file
 
 EXPORTABLE = {
     "sessions": (TelegramSession, ("id", "file_name", "location", "file_format", "encrypted", "username", "telegram_id",
@@ -87,23 +90,21 @@ async def export_records(db: AsyncSession, export_type: str, fmt: str = "json", 
     return await _record(db, export_type, fmt, path, actor, filters)
 
 
-async def export_case_pdf(db: AsyncSession, case: Case, *, actor: str | None = None,
-                          settings: Settings | None = None) -> ExportRecord:
+async def _case_pdf_bytes(db: AsyncSession, case: Case) -> bytes:
+    """Render the case report as PDF bytes (cover, evidence table with hashes, submissions, history)."""
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.units import cm
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
     from reportlab.lib import colors
 
-    settings = settings or get_settings()
-    settings.ensure_dirs()
     target = await db.get(Target, case.target_id)
     evidence = await list_evidence(db, case.id)
     subs = list((await db.execute(select(Submission).where(Submission.case_id == case.id))).scalars().all())
     draft = loads(case.draft_json) or {}
-    path = settings.export_root / f"case_{case.case_number}_{_stamp()}.pdf"
     styles = getSampleStyleSheet()
-    doc = SimpleDocTemplate(str(path), pagesize=A4, leftMargin=2 * cm, rightMargin=2 * cm, topMargin=2 * cm, bottomMargin=2 * cm)
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=2 * cm, rightMargin=2 * cm, topMargin=2 * cm, bottomMargin=2 * cm)
 
     def p(text: str, style="BodyText"):
         return Paragraph(str(text).replace("&", "&amp;").replace("<", "&lt;").replace("\n", "<br/>"), styles[style])
@@ -126,14 +127,84 @@ async def export_case_pdf(db: AsyncSession, case: Case, *, actor: str | None = N
     et.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.25, colors.grey), ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey)]))
     story += [et, Spacer(1, 10), p("Submissions", "Heading3")]
     for s in subs:
-        story += [p(f"{s.channel} → {s.recipient or '-'} | {s.status} | ref {s.reference_number or '-'} | {s.result or ''}")]
+        story += [p(f"{s.channel} &#8594; {s.recipient or '-'} | {s.status} | ref {s.reference_number or '-'} | {s.result or ''}")]
     story += [Spacer(1, 10), p("History", "Heading3")]
-    for ev in case.events:
+    events = (await db.execute(select(CaseEvent).where(CaseEvent.case_id == case.id)
+                               .order_by(CaseEvent.created_at))).scalars().all()
+    for ev in events:
         story += [p(f"{ev.created_at.isoformat()} — {ev.event_type} — {ev.actor or '-'} "
-                    f"{('(' + (ev.from_status or '') + ' → ' + (ev.to_status or '') + ')') if ev.to_status else ''}")]
+                    f"{('(' + (ev.from_status or '') + ' &#8594; ' + (ev.to_status or '') + ')') if ev.to_status else ''}")]
     doc.build(story)
+    return buf.getvalue()
+
+
+async def export_case_pdf(db: AsyncSession, case: Case, *, actor: str | None = None,
+                          settings: Settings | None = None) -> ExportRecord:
+    settings = settings or get_settings()
+    settings.ensure_dirs()
+    path = settings.export_root / f"case_{case.case_number}_{_stamp()}.pdf"
+    path.write_bytes(await _case_pdf_bytes(db, case))
     path.chmod(0o600)
     return await _record(db, "case_pdf", "pdf", path, actor, {"case_id": case.id})
+
+
+async def export_case_dossier(db: AsyncSession, case: Case, *, actor: str | None = None,
+                              settings: Settings | None = None) -> ExportRecord:
+    """One self-contained, tamper-evident ZIP for a government/law-enforcement authority: the case report (PDF),
+    every evidence file with its SHA-256 and chain of custody, the submission log and the case audit trail, plus a
+    top-level MANIFEST.json that hashes each contained file so the package can be checked for tampering."""
+    from app.services.evidence import add_evidence_to_zip
+
+    settings = settings or get_settings()
+    settings.ensure_dirs()
+    target = await db.get(Target, case.target_id)
+    subs = list((await db.execute(select(Submission).where(Submission.case_id == case.id)
+                                  .order_by(Submission.created_at))).scalars().all())
+    audit = list((await db.execute(select(AuditLog).where(AuditLog.case_id == case.id)
+                                   .order_by(AuditLog.at))).scalars().all())
+    generated_at = datetime.now(timezone.utc)
+    out = settings.export_root / f"dossier_{case.case_number}_{_stamp()}.zip"
+
+    def _iso(v):
+        return v.isoformat() if isinstance(v, datetime) else v
+
+    case_json = {c: _iso(getattr(case, c)) for c in EXPORTABLE["cases"][1]}
+    case_json["target"] = {"type": target.target_type, "url": target.url, "username": target.username,
+                           "telegram_id": target.telegram_id, "title": target.title}
+    subs_json = [{c: _iso(getattr(s, c)) for c in EXPORTABLE["submissions"][1]} for s in subs]
+    audit_json = [{c: _iso(getattr(a, c)) for c in EXPORTABLE["audit"][1]} for a in audit]
+
+    contents: dict[str, bytes] = {
+        "01_case_report.pdf": await _case_pdf_bytes(db, case),
+        "02_case.json": dumps(case_json).encode("utf-8"),
+        "03_submissions.json": dumps({"count": len(subs_json), "submissions": subs_json}).encode("utf-8"),
+        "04_audit_trail.json": dumps({"count": len(audit_json), "audit": audit_json}).encode("utf-8"),
+        "README.txt": (
+            f"Official case dossier for {case.case_number}\n"
+            f"Generated {generated_at.isoformat()} by {actor or 'unknown'}\n\n"
+            "Contents:\n"
+            "  01_case_report.pdf   - human-readable case report\n"
+            "  02_case.json         - case record\n"
+            "  03_submissions.json  - official submissions filed for this case\n"
+            "  04_audit_trail.json  - full audit trail (who did what, when)\n"
+            "  evidence/manifest.json + evidence/files/... - evidence with SHA-256 and chain of custody\n"
+            "  MANIFEST.json        - SHA-256 of every file above; recompute to verify the package is intact\n"
+        ).encode("utf-8"),
+    }
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, data in contents.items():
+            zf.writestr(name, data)
+        ev_manifest = await add_evidence_to_zip(db, case, zf, prefix="evidence/", actor=actor, note=out.name)
+        index = {name: {"sha256": _sha256_bytes(data), "size": len(data)} for name, data in contents.items()}
+        index["evidence/manifest.json"] = {"sha256": _sha256_bytes(
+            json.dumps(ev_manifest, indent=2, ensure_ascii=False).encode("utf-8")), "evidence_count": len(ev_manifest["evidence"])}
+        manifest = {"package": "official_case_dossier", "case_number": case.case_number, "case_id": case.id,
+                    "generated_at": generated_at.isoformat(), "generated_by": actor,
+                    "evidence_count": len(ev_manifest["evidence"]), "submission_count": len(subs_json),
+                    "files": index, "note": "Recompute each file's SHA-256 to confirm the dossier has not been altered."}
+        zf.writestr("MANIFEST.json", json.dumps(manifest, indent=2, ensure_ascii=False))
+    out.chmod(0o600)
+    return await _record(db, "case_dossier", "zip", out, actor, {"case_id": case.id})
 
 
 async def export_evidence_zip(db: AsyncSession, case: Case, *, actor: str | None = None,

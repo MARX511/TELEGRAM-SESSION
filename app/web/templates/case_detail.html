@@ -15,6 +15,9 @@
     </div>
   </div>
   <div class="page-actions">
+    {% if has_permission(user, rbac.P_REPORTS_EXPORT) %}
+    <form method="post" action="/cases/{{ case.id }}/action/dossier"><button class="btn btn-primary btn-sm" data-tip="{{ _('One ZIP for a government or law-enforcement authority: report, evidence with hashes and chain of custody, and the full audit trail.') }}">{{ icon('folder-open') }}{{ _('Official dossier') }}</button></form>
+    {% endif %}
     <form method="post" action="/cases/{{ case.id }}/action/pdf"><button class="btn btn-ghost btn-sm">{{ icon('file-down') }}{{ _('Export PDF') }}</button></form>
     <form method="post" action="/cases/{{ case.id }}/action/evidence-zip"><button class="btn btn-ghost btn-sm">{{ icon('archive') }}{{ _('Evidence ZIP') }}</button></form>
   </div>

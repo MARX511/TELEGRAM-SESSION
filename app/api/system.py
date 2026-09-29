@@ -50,6 +50,12 @@ async def evidence_zip(case_id: str, db: AsyncSession = Depends(get_db), user: U
     return await export_service.export_evidence_zip(db, await case_service.get_case(db, case_id), actor=user.username)
 
 
+@exports_router.post("/cases/{case_id}/dossier", response_model=ExportOut, status_code=201)
+async def case_dossier(case_id: str, db: AsyncSession = Depends(get_db), user: User = Depends(rbac.require(rbac.P_REPORTS_EXPORT))):
+    """Official case dossier (ZIP): case report, evidence with hashes and custody, submission log and audit trail."""
+    return await export_service.export_case_dossier(db, await case_service.get_case(db, case_id), actor=user.username)
+
+
 @exports_router.get("/{export_id}/download")
 async def download(export_id: str, db: AsyncSession = Depends(get_db), _: User = Depends(rbac.require(rbac.P_REPORTS_EXPORT))):
     rec = await db.get(ExportRecord, export_id)

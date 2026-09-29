@@ -171,28 +171,39 @@ async def read_evidence_bytes(db: AsyncSession, ev: Evidence, actor: str | None 
     return p.read_bytes()
 
 
+async def add_evidence_to_zip(db: AsyncSession, case: Case, zf: "zipfile.ZipFile", *, prefix: str = "",
+                              actor: str | None = None, note: str | None = None) -> dict:
+    """Write every stored evidence file into an open ZIP under `prefix`, re-hashing each and recording custody
+    ('exported'). Returns the manifest (hashes + custody chain + which items failed integrity). Shared by the
+    evidence package and the official dossier so both stay identical and tamper-evident."""
+    items = await list_evidence(db, case.id)
+    manifest = {"case_id": case.id, "case_number": case.case_number, "generated_at": _now().isoformat(),
+                "generated_by": actor, "evidence": []}
+    for ev in items:
+        on_disk = ev.storage_path and Path(ev.storage_path).exists()
+        verified = on_disk and sha256_file(Path(ev.storage_path)) == ev.sha256
+        exported = _custody(db, ev, "exported", actor, ev.sha256, note or "included in export")
+        chain = list(ev.custody) + [exported]
+        entry = {"id": ev.id, "type": ev.evidence_type, "title": ev.title, "sha256": ev.sha256,
+                 "external_url": ev.external_url, "captured_at": ev.captured_at.isoformat() if ev.captured_at else None,
+                 "added_by": ev.added_by, "integrity_ok": bool(verified) if on_disk else ev.integrity_ok, "file": None,
+                 "custody": [{"action": c.action, "actor": c.actor, "at": c.at.isoformat(), "sha256": c.sha256_at_time,
+                              "notes": c.notes} for c in chain]}
+        if on_disk:
+            arc = f"{prefix}files/{ev.id}__{_safe_name(ev.original_name or 'file')}"
+            zf.write(ev.storage_path, arc)
+            entry["file"] = arc
+        manifest["evidence"].append(entry)
+    zf.writestr(f"{prefix}manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
+    return manifest
+
+
 async def build_evidence_package(db: AsyncSession, case: Case, *, actor: str | None = None,
                                  settings: Settings | None = None) -> Path:
     """ZIP with every stored file + manifest.json (hashes, custody chain). Custody 'exported' is recorded."""
     settings = settings or get_settings()
     settings.ensure_dirs()
-    items = await list_evidence(db, case.id)
     out = settings.export_root / f"evidence_{case.case_number}_{_now().strftime('%Y%m%dT%H%M%SZ')}.zip"
-    manifest = {"case_id": case.id, "case_number": case.case_number, "generated_at": _now().isoformat(),
-                "generated_by": actor, "evidence": []}
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
-        for ev in items:
-            exported = _custody(db, ev, "exported", actor, ev.sha256, out.name)
-            chain = list(ev.custody) + [exported]
-            entry = {"id": ev.id, "type": ev.evidence_type, "title": ev.title, "sha256": ev.sha256,
-                     "external_url": ev.external_url, "captured_at": ev.captured_at.isoformat() if ev.captured_at else None,
-                     "added_by": ev.added_by, "integrity_ok": ev.integrity_ok, "file": None,
-                     "custody": [{"action": c.action, "actor": c.actor, "at": c.at.isoformat(), "sha256": c.sha256_at_time,
-                                  "notes": c.notes} for c in chain]}
-            if ev.storage_path and Path(ev.storage_path).exists():
-                arc = f"files/{ev.id}__{_safe_name(ev.original_name or 'file')}"
-                zf.write(ev.storage_path, arc)
-                entry["file"] = arc
-            manifest["evidence"].append(entry)
-        zf.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
+        await add_evidence_to_zip(db, case, zf, actor=actor, note=out.name)
     return out
