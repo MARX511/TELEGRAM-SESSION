@@ -557,13 +557,20 @@ async def users_ensure_admin(username: str = "admin"):
             return
         console.print(f"No users yet. Creating the first admin account ('{username}').")
         pw = os.environ.get("BOOTSTRAP_ADMIN_PASSWORD")
-        if not pw:
+        if pw is not None:
+            if len(pw) < 8:
+                console.print("[red]BOOTSTRAP_ADMIN_PASSWORD must be at least 8 characters.[/red]")
+                raise typer.Exit(1)
+        else:
             import typer as _typer
 
-            pw = _typer.prompt("Choose a password for the admin account", hide_input=True, confirmation_prompt=True)
-        if len(pw) < 8:
-            console.print("[red]password must be at least 8 characters[/red]")
-            raise typer.Exit(1)
+            # Re-ask until the password is long enough instead of aborting the whole setup.
+            while True:
+                pw = _typer.prompt("Choose a password for the admin account (at least 8 characters)",
+                                   hide_input=True, confirmation_prompt=True)
+                if len(pw) >= 8:
+                    break
+                console.print("[yellow]Too short. Please use at least 8 characters and try again.[/yellow]")
         u = User(username=username, password_hash=hash_password(pw), role="admin", full_name="Administrator")
         db.add(u)
         await db.flush()
