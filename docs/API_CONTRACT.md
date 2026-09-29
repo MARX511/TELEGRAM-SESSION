@@ -36,7 +36,7 @@
 | POST | `/submissions/cases/{case_id}` `{channel, recipient}` | `submissions:write` | القضية يجب أن تكون Ready |
 | POST | `/submissions/{id}/execute` · `/confirm` | `submissions:execute` | execute يسجّل approved_by |
 | POST | `/submissions/{id}/response` · `/cancel` | `submissions:write` | |
-| GET/POST | `/exports` · POST `/exports/cases/{id}/pdf` · `/exports/cases/{id}/evidence-zip` · GET `/exports/{id}/download` | `reports:export` | |
+| GET/POST | `/exports` · POST `/exports/cases/{id}/pdf` · `/exports/cases/{id}/evidence-zip` · `/exports/cases/{id}/dossier` (حزمة رسمية للجهات الحكومية) · GET `/exports/{id}/download` | `reports:export` | |
 | GET | `/audit` | `audit:read` | filters: action, actor, entity_id, case_id, session_id, since, until |
 | GET | `/errors` | `monitoring:read` | |
 | GET | `/monitoring/metrics` · `/monitoring/analytics` | `monitoring:read` / `cases:read` | |

@@ -63,6 +63,13 @@ evidence attached after an integrity check (15 MB total). Without SMTP an `.eml`
 written to `exports/` for you to send from your own mailbox. Replies arrive in that mailbox; record them on the case
 (**Record response**) to move it to Completed or Failed.
 
+## Official case dossier
+For reporting to a government or law-enforcement authority, the case page has **Official dossier** (also
+`POST /api/v1/exports/cases/{id}/dossier`), which downloads one self-contained, tamper-evident ZIP:
+`01_case_report.pdf`, `02_case.json`, `03_submissions.json`, `04_audit_trail.json`, the evidence under
+`evidence/` (files + `manifest.json` with each file's SHA-256 and chain of custody), and a top-level
+`MANIFEST.json` that hashes every file so the recipient can confirm nothing was altered. Requires `reports:export`.
+
 **Not supported by design:** the platform never reports *from* the accounts in your `.session` files, and never sends
 the same report from many accounts. Session files are a registry only; reporting is one report per case through an
 official channel, filed by a human. See `docs/SECURITY_MODEL.md`.

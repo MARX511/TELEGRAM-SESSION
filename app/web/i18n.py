@@ -330,6 +330,9 @@ AR: dict[str, str] = {
     "Official email addresses": "عناوين البريد الرسمية",
     "Official portals and channels": "البوابات والقنوات الرسمية",
     "Manual: no recipient needed — you file it and confirm here.": "يدوي: لا يحتاج مستلمًا — تقدّمه بنفسك ثم تؤكّده هنا.",
+    "Official dossier": "ملف القضية الرسمي",
+    "One ZIP for a government or law-enforcement authority: report, evidence with hashes and chain of custody, and the full audit trail.":
+        "ملف ZIP واحد لجهة حكومية أو إنفاذ قانون: التقرير، والأدلة ببصماتها وسلسلة حيازتها، وسجل التدقيق الكامل.",
     "Telegram usually does not answer each report individually. If the target is removed or restricted (its link shows it is unavailable), record the response as Accepted; the case then moves to Completed.":
         "تيليجرام لا يرد غالبًا على كل بلاغ بشكل منفصل. إذا حُذف الهدف أو قُيّد (يظهر رابطه غير متاح)، سجّل الرد «مقبول» فتنتقل القضية إلى «مكتمل».",
 }
