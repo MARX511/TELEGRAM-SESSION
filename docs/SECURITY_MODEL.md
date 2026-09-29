@@ -7,6 +7,7 @@
 | الأدلة | تلاعب/إنكار | SHA-256 عند الإضافة، سلسلة حيازة، تحقق دوري، manifest في حزمة ZIP |
 | بيانات القضايا | وصول غير مصرّح | RBAC على كل نقطة نهاية، JWT موقّع بـ`APP_SECRET_KEY`، كوكي HttpOnly/SameSite=Lax (Secure في production) |
 | الأسرار (DB/SMTP/Proxy) | تسريب في الكود/DB | بيئة فقط (`.env` خارج git)، `secret_ref` للـProxy، `config` backup يُخفي القيم الحساسة |
+| متصفح المُشغّل | سكربت طرف ثالث يقرأ بيانات القضايا | أصول اللوحة محلية بالكامل (`/static/app.css`, `/static/htmx.min.js`)، لا CDN؛ تُبنى عبر `scripts/build_assets.sh` |
 | سجل التدقيق | حذف/تعديل | جدول append-only بالمنطق (لا نقاط نهاية تعديل/حذف)، تصدير موقّع بالهاش |
 | المنصة (Telegram) | إساءة استخدام الأداة | لا إرسال عبر Sessions، لا تدوير، احترام FloodWait، allow-list للعناوين الرسمية |
 

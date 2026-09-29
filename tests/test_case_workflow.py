@@ -120,3 +120,23 @@ async def test_no_session_based_submission_channel_exists():
     assert {c.value for c in SubmissionChannel} == {"manual", "official_email", "official_portal", "official_api"}
     src = Path(channels.__file__).read_text()
     assert "TelegramClient" not in src and "telethon" not in src.lower()
+
+
+async def test_evidence_summary_lists_each_item_on_its_own_line(db, seeded):
+    t = await create_target(db, target_type="channel", username="lines_chan", actor="op")
+    c = await cs.create_case(db, target_id=t.id, title="Lines", reason_code="spam", actor="op")
+    await ev.add_reference_evidence(db, c, evidence_type="url", title="first", value="https://t.me/lines_chan/1", actor="op")
+    await ev.add_reference_evidence(db, c, evidence_type="url", title="second", value="https://t.me/lines_chan/2", actor="op")
+    pkg = await cs.generate_draft(db, c, actor="op")
+    lines = [ln for ln in pkg["evidence_summary"].splitlines() if ln.strip()]
+    assert len(lines) == 2 and lines[0].startswith("- [url] first") and lines[1].startswith("- [url] second")
+
+
+async def test_case_cannot_be_marked_submitted_without_a_submission(db, seeded):
+    c = await _ready_case(db)
+    with pytest.raises(TransitionError):
+        await cs.transition(db, c, CaseStatus.SUBMITTED.value, actor="op")
+    assert c.status == CaseStatus.READY.value
+    sub = await ss.create_submission(db, c, channel="manual", actor="op")
+    await ss.execute_submission(db, sub, approved_by="op")
+    assert c.status == CaseStatus.SUBMITTED.value

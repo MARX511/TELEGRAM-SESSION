@@ -17,6 +17,7 @@ cp .env.example .env                       # set DATABASE_URL (PostgreSQL) and s
 .venv/bin/python -m app.cli.main sessions scan && .venv/bin/python -m app.cli.main sessions check --all
 .venv/bin/python -m app.cli.main serve      # http://localhost:8000  (API docs: /api/docs)
 ```
+Dashboard assets are self-hosted (no CDN); rebuild them after template changes with `scripts/build_assets.sh`.
 Docker: `docker compose up` (PostgreSQL + Redis + app). Tests: `.venv/bin/pytest`. Benchmark: `python -m benchmarks --db <scratch-db-url>`.
 
 ## Documents

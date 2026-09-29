@@ -17,7 +17,8 @@ from app.services.errors import NotFoundError, ValidationFailed
 
 SEED_PATH = Path(__file__).resolve().parent.parent / "data" / "templates_seed.json"
 PACKAGE_FIELDS = ("subject", "summary", "reason", "evidence_summary", "requested_review", "reference", "additional_notes")
-_env = SandboxedEnvironment(autoescape=False, trim_blocks=True, lstrip_blocks=True)
+# trim_blocks stays off: templates rely on the newline after {% endif %} / {% endfor %} to separate items.
+_env = SandboxedEnvironment(autoescape=False, trim_blocks=False, lstrip_blocks=True)
 
 
 async def seed_templates(db: AsyncSession, actor: str | None = None) -> int:

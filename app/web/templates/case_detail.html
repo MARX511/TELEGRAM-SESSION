@@ -7,9 +7,11 @@
  <div class="bg-white shadow rounded-lg p-4"><h2 class="font-semibold mb-2">Workflow</h2>
  <div class="flex flex-wrap gap-2 text-sm">
  {% if has_permission(user, rbac.P_CASES_WRITE) %}
+ {% if case.status in ['Draft','Pending Review'] %}
  <form method="post" action="/cases/{{ case.id }}/action/reason" class="flex gap-1"><select name="reason_code" class="border rounded px-2 py-1">{% for r in reasons %}<option value="{{ r.code }}" {% if case.reason and case.reason.code == r.code %}selected{% endif %}>{{ r.name }}</option>{% endfor %}</select><button class="border rounded px-2">Set reason</button></form>
  <form method="post" action="/cases/{{ case.id }}/action/draft"><button class="border rounded px-2 py-1">Generate draft</button></form>
- {% for s in allowed %}{% if s != 'Approved' or has_permission(user, rbac.P_CASES_APPROVE) %}<form method="post" action="/cases/{{ case.id }}/action/transition"><input type="hidden" name="to_status" value="{{ s }}"><button class="rounded px-2 py-1 {% if s == 'Approved' %}bg-blue-700 text-white{% elif s == 'Closed' %}bg-slate-300{% else %}border{% endif %}">→ {{ s }}</button></form>{% endif %}{% endfor %}
+ {% endif %}
+ {% for s in allowed %}{% if s not in ['Submitted','Awaiting Response','Completed'] and (s != 'Approved' or has_permission(user, rbac.P_CASES_APPROVE)) %}<form method="post" action="/cases/{{ case.id }}/action/transition"><input type="hidden" name="to_status" value="{{ s }}"><button class="rounded px-2 py-1 {% if s == 'Approved' %}bg-blue-700 text-white{% elif s == 'Closed' %}bg-slate-300{% else %}border{% endif %}">→ {{ s }}</button></form>{% endif %}{% endfor %}
  {% endif %}
  <form method="post" action="/cases/{{ case.id }}/action/pdf"><button class="border rounded px-2 py-1">Export PDF</button></form>
  <form method="post" action="/cases/{{ case.id }}/action/evidence-zip"><button class="border rounded px-2 py-1">Evidence ZIP</button></form>

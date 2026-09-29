@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models import Case, CaseEvent, Evidence, Reason, Target
-from app.domain.enums import CASE_TRANSITIONS, AuditAction, CasePriority, CaseStatus
+from app.domain.enums import CASE_TRANSITIONS, AuditAction, CasePriority, CaseStatus, ExecutionStatus
 from app.services.audit import record_audit
 from app.services.errors import NotFoundError, TransitionError, ValidationFailed
 from app.services.reasons import get_reason_by_code
@@ -104,7 +104,7 @@ async def generate_draft(db: AsyncSession, case: Case, *, template_id: str | Non
     target = await db.get(Target, case.target_id)
     reason = await db.get(Reason, case.reason_id) if case.reason_id else None
     template = await get_template(db, template_id=template_id, reason_code=reason.code if reason else None)
-    evidence = list((await db.execute(select(Evidence).where(Evidence.case_id == case.id))).scalars().all())
+    evidence = list((await db.execute(select(Evidence).where(Evidence.case_id == case.id).order_by(Evidence.created_at, Evidence.id))).scalars().all())
     package = render_package(template, case, target, reason, evidence)
     case.draft_json = dumps(package)
     case.template_id = template.id
@@ -145,6 +145,13 @@ async def transition(db: AsyncSession, case: Case, to_status: str, *, actor: str
             raise TransitionError("a reason must be set before approval")
         case.approved_by = actor
         case.approved_at = _now()
+    if nxt == CaseStatus.SUBMITTED:
+        from app.db.models import Submission  # local import: submissions imports this module
+
+        has_submission = (await db.execute(select(func.count(Submission.id)).where(
+            Submission.case_id == case.id, Submission.status != ExecutionStatus.CANCELLED.value))).scalar_one()
+        if not has_submission:
+            raise TransitionError("a case reaches 'Submitted' only through an official submission record")
     if nxt == CaseStatus.CLOSED:
         case.closed_at = _now()
     case.status = nxt.value
