@@ -1,2 +1,12 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Windows scripts check out with CRLF so they read cleanly in Notepad and cmd.exe.
+# (The launchers are written to tolerate either, but CRLF is the native choice.)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Unix shell scripts and Python source stay LF.
+*.sh text eol=lf
+*.py text eol=lf
