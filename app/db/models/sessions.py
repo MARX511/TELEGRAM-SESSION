@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, IdMixin, TimestampMixin
+from app.db.base import Base, IdMixin, UTCDateTime, TimestampMixin
 from app.domain.enums import HealthState, SessionLocation, SessionStatus
 
 
@@ -64,16 +64,16 @@ class TelegramSession(IdMixin, TimestampMixin, Base):
     health: Mapped[str] = mapped_column(String(16), default=HealthState.UNAVAILABLE.value, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    last_check: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_check: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    last_success_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    last_failure_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     last_error: Mapped[str | None] = mapped_column(Text)
     last_error_category: Mapped[str | None] = mapped_column(String(32))
     failure_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     check_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     availability: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)  # success ratio 0..1
-    rate_limited_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rate_limited_until: Mapped[datetime | None] = mapped_column(UTCDateTime())
     tags: Mapped[str | None] = mapped_column(String(255))
 
     group: Mapped[SessionGroup | None] = relationship(back_populates="sessions")
@@ -88,8 +88,8 @@ class SessionCheck(IdMixin, Base):
     session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False)
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     operator: Mapped[str | None] = mapped_column(String(64))
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     result_status: Mapped[str] = mapped_column(String(32), nullable=False)
     success: Mapped[bool] = mapped_column(Boolean, nullable=False)
     latency_ms: Mapped[int | None] = mapped_column(Integer)

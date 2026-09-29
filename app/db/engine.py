@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import get_settings
@@ -18,10 +19,25 @@ def get_engine(url: str | None = None) -> AsyncEngine:
         url = url or get_settings().database_url
         kwargs: dict = {"pool_pre_ping": True}
         if url.startswith("sqlite"):
-            kwargs = {"connect_args": {"check_same_thread": False}}
+            kwargs = {"connect_args": {"check_same_thread": False, "timeout": 30}}
         _engine = create_async_engine(url, **kwargs)
+        if url.startswith("sqlite"):
+            event.listen(_engine.sync_engine, "connect", _sqlite_pragmas)
         _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
     return _engine
+
+
+def _sqlite_pragmas(dbapi_connection, _record) -> None:
+    """Local SQLite mode: enforce foreign keys (off by default in SQLite) and let the background workers and
+    request handlers write concurrently (WAL + busy timeout instead of immediate "database is locked")."""
+    cur = dbapi_connection.cursor()
+    try:
+        cur.execute("PRAGMA foreign_keys=ON")
+        cur.execute("PRAGMA busy_timeout=30000")
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA synchronous=NORMAL")
+    finally:
+        cur.close()
 
 
 def get_session_factory() -> async_sessionmaker[AsyncSession]:

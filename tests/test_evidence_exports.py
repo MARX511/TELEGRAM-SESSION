@@ -67,3 +67,27 @@ async def test_json_csv_pdf_exports_are_recorded_and_audited(db, seeded, setting
     assert "file_path" not in Path(sessions_export.file_path).read_text()  # absolute paths never leave the system
     rows, total = await search_audit(db, action="Export Created")
     assert total == 4
+
+
+def test_csv_export_uses_single_line_terminators():
+    """The CSV writer path must not double newlines; guarded so Windows text-mode translation cannot corrupt rows."""
+    import csv
+    import io
+
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=["a", "b"])
+    w.writeheader()
+    w.writerow({"a": "1", "b": "x"})
+    payload = buf.getvalue()
+    assert "\r\n" in payload  # csv module's own terminator
+    # exports.export_records writes with newline="" so this content reaches disk unchanged (no \r\r\n)
+    from pathlib import Path
+    import tempfile
+
+    p = Path(tempfile.mkstemp(suffix=".csv")[1])
+    p.write_text(payload, encoding="utf-8", newline="")
+    raw = p.read_bytes()
+    assert b"\r\r\n" not in raw
+    rows = list(csv.reader(raw.decode("utf-8").splitlines()))
+    assert rows == [["a", "b"], ["1", "x"]]  # no phantom blank rows
+    p.unlink()

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, IdMixin, TimestampMixin
+from app.db.base import Base, IdMixin, UTCDateTime, TimestampMixin
 from app.domain.enums import ExecutionStatus
 
 
@@ -22,8 +22,8 @@ class Submission(IdMixin, TimestampMixin, Base):
     operator: Mapped[str | None] = mapped_column(String(64))
     package_json: Mapped[str | None] = mapped_column(Text)  # the report package as sent
     status: Mapped[str] = mapped_column(String(16), default=ExecutionStatus.PENDING.value, nullable=False)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     result: Mapped[str | None] = mapped_column(Text)
     error_code: Mapped[str | None] = mapped_column(String(32))
     error_message: Mapped[str | None] = mapped_column(Text)
@@ -44,8 +44,8 @@ class SubmissionAttempt(IdMixin, Base):
     attempt_no: Mapped[int] = mapped_column(Integer, nullable=False)
     channel: Mapped[str] = mapped_column(String(32), nullable=False)
     operator: Mapped[str | None] = mapped_column(String(64))
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     result: Mapped[str | None] = mapped_column(Text)
     error_code: Mapped[str | None] = mapped_column(String(32))
@@ -59,7 +59,7 @@ class Response(IdMixin, Base):
 
     submission_id: Mapped[str] = mapped_column(ForeignKey("submissions.id", ondelete="CASCADE"), nullable=False,
                                                index=True)
-    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     source: Mapped[str | None] = mapped_column(String(64))
     outcome: Mapped[str | None] = mapped_column(String(64))  # accepted | rejected | info_requested | ...
     reference_number: Mapped[str | None] = mapped_column(String(128))

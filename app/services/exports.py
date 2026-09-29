@@ -81,7 +81,8 @@ async def export_records(db: AsyncSession, export_type: str, fmt: str = "json", 
         w.writeheader()
         for row in data:
             w.writerow({k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in row.items()})
-        path.write_text(buf.getvalue(), encoding="utf-8")
+        # newline="" so the csv module's own \r\n line terminators are not re-translated to \r\r\n on Windows.
+        path.write_text(buf.getvalue(), encoding="utf-8", newline="")
     path.chmod(0o600)
     return await _record(db, export_type, fmt, path, actor, filters)
 

@@ -111,3 +111,30 @@ async def test_timeout_is_retryable(factory, settings, monkeypatch):
     await pool.run_once()
     job = await q.get(j.id)
     assert job.status == ExecutionStatus.RETRYING.value and job.error_category == ErrorCategory.NETWORK_ERROR.value
+
+
+async def test_claim_is_atomic_no_double_run(factory, settings):
+    """Two workers claiming concurrently must never run the same job twice (SQLite has no SKIP LOCKED)."""
+    import asyncio as _asyncio
+
+    from app.workers.queue import JobQueue
+    from app.workers.worker import WorkerPool
+
+    q = JobQueue(factory, settings)
+    runs: dict[int, int] = {}
+
+    async def handler(payload, ctx):
+        n = payload["n"]
+        runs[n] = runs.get(n, 0) + 1
+        await _asyncio.sleep(0.01)
+        return {"n": n}
+
+    await q.enqueue_many("count", [{"n": i} for i in range(30)])
+    pool = WorkerPool(q, {"count": handler}, concurrency=2, settings=settings)
+    for _ in range(60):
+        done = await _asyncio.gather(pool.run_once("w0", limit=1), pool.run_once("w1", limit=1))
+        if sum(done) == 0:
+            break
+    assert len(runs) == 30
+    assert sum(runs.values()) == 30, f"jobs ran more than once: {[n for n, c in runs.items() if c > 1]}"
+    assert (await q.stats())["COMPLETED"] == 30

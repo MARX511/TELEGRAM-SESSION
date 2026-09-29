@@ -66,20 +66,29 @@ class JobQueue:
             return res.rowcount > 0
 
     async def claim(self, worker: str, limit: int = 1) -> list[JobRecord]:
+        """Atomically claim up to `limit` jobs. Each row is taken with a conditional UPDATE keyed on its id AND
+        its still-claimable status, so a job is claimed by exactly one worker on every backend. PostgreSQL also
+        uses SELECT ... FOR UPDATE SKIP LOCKED to avoid lock waits; SQLite serialises writers, so the conditional
+        UPDATE (rowcount == 1) is what prevents two workers running the same job."""
         now = _now()
         async with self.session_factory() as session:
-            q = (select(JobRecord).where(JobRecord.status.in_(CLAIMABLE),
-                                          (JobRecord.not_before.is_(None)) | (JobRecord.not_before <= now))
+            q = (select(JobRecord.id).where(JobRecord.status.in_(CLAIMABLE),
+                                            (JobRecord.not_before.is_(None)) | (JobRecord.not_before <= now))
                  .order_by(JobRecord.created_at).limit(limit))
             if session.bind.dialect.name == "postgresql":
                 q = q.with_for_update(skip_locked=True)
-            jobs = list((await session.execute(q)).scalars().all())
-            for j in jobs:
-                j.status = ExecutionStatus.RUNNING.value
-                j.started_at = now
-                j.worker = worker
+            candidate_ids = list((await session.execute(q)).scalars().all())
+            claimed_ids: list[str] = []
+            for jid in candidate_ids:
+                res = await session.execute(update(JobRecord).where(JobRecord.id == jid, JobRecord.status.in_(CLAIMABLE))
+                                            .values(status=ExecutionStatus.RUNNING.value, started_at=now, worker=worker))
+                if res.rowcount == 1:
+                    claimed_ids.append(jid)
             await session.commit()
-            return jobs
+            if not claimed_ids:
+                return []
+            jobs = (await session.execute(select(JobRecord).where(JobRecord.id.in_(claimed_ids)))).scalars().all()
+            return sorted(jobs, key=lambda j: j.created_at)
 
     async def stats(self) -> dict[str, int]:
         async with self.session_factory() as session:

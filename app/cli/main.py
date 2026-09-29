@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from functools import wraps
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from rich.console import Console
 from rich.table import Table
 
 from app.config import get_settings
-from app.db.engine import get_session_factory, session_scope
+from app.db.engine import get_session_factory, reset_engine, session_scope
 from app.utils import dumps
 
 cli = typer.Typer(help="Telegram Session & Legal Reporting Platform", no_args_is_help=True, pretty_exceptions_show_locals=False)
@@ -39,8 +40,16 @@ OPERATOR = typer.Option("cli", "--as", help="Operator identity recorded in the a
 def run(fn):
     @wraps(fn)
     def wrapper(*a, **kw):
+        async def _main():
+            try:
+                return await fn(*a, **kw)
+            finally:
+                # Close pooled connections inside the loop: otherwise aiosqlite/asyncpg clean-up runs after the
+                # loop is closed (noisy "Event loop is closed" errors on Windows, possible hang on exit).
+                await reset_engine()
+
         try:
-            return asyncio.run(fn(*a, **kw))
+            return asyncio.run(_main())
         except Exception as exc:  # noqa: BLE001
             from app.services.errors import AppError
 
@@ -528,6 +537,39 @@ async def users_create(username: str, password: str = typer.Option(..., prompt=T
         await db.flush()
         await record_audit(db, AuditAction.USER_CREATED, actor=operator, entity_type="user", entity_id=u.id, details={"role": role})
         console.print(f"user {u.id} role={role}")
+
+
+@users_app.command("ensure-admin")
+@run
+async def users_ensure_admin(username: str = "admin"):
+    """Create the first admin if the platform has no users yet. Idempotent: does nothing once any user exists.
+    Used by the local launcher; prompts for a password only when it actually needs to create the account."""
+    from sqlalchemy import func, select
+
+    from app.db.models import User
+    from app.domain.enums import AuditAction
+    from app.security.auth import hash_password
+    from app.services.audit import record_audit
+
+    async with session_scope() as db:
+        if (await db.execute(select(func.count(User.id)))).scalar_one():
+            console.print("[green]a user already exists; not creating another admin.[/green]")
+            return
+        console.print(f"No users yet. Creating the first admin account ('{username}').")
+        pw = os.environ.get("BOOTSTRAP_ADMIN_PASSWORD")
+        if not pw:
+            import typer as _typer
+
+            pw = _typer.prompt("Choose a password for the admin account", hide_input=True, confirmation_prompt=True)
+        if len(pw) < 8:
+            console.print("[red]password must be at least 8 characters[/red]")
+            raise typer.Exit(1)
+        u = User(username=username, password_hash=hash_password(pw), role="admin", full_name="Administrator")
+        db.add(u)
+        await db.flush()
+        await record_audit(db, AuditAction.USER_CREATED, actor="setup", entity_type="user", entity_id=u.id,
+                           details={"role": "admin", "bootstrap": True})
+        console.print(f"[green]admin account '{username}' created.[/green]")
 
 
 @users_app.command("list")

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base, IdMixin, TimestampMixin
+from app.db.base import Base, IdMixin, UTCDateTime, TimestampMixin
 from app.domain.enums import ProxyStatus
 
 
@@ -23,6 +23,6 @@ class Proxy(IdMixin, TimestampMixin, Base):
     secret_ref: Mapped[str | None] = mapped_column(String(128))  # reference to secret store, never plaintext
     status: Mapped[str] = mapped_column(String(16), default=ProxyStatus.UNKNOWN.value, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    last_check: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_check: Mapped[datetime | None] = mapped_column(UTCDateTime())
     latency_ms: Mapped[int | None] = mapped_column(Integer)
     last_error: Mapped[str | None] = mapped_column(Text)
