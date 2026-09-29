@@ -32,7 +32,7 @@ async def build_package(db: AsyncSession, case: Case) -> ReportPackage:
     if not draft:
         raise ValidationFailed("case has no approved draft")
     target = await db.get(Target, case.target_id)
-    evidence = list((await db.execute(select(Evidence).where(Evidence.case_id == case.id))).scalars().all())
+    evidence = list((await db.execute(select(Evidence).where(Evidence.case_id == case.id).order_by(Evidence.created_at, Evidence.id))).scalars().all())
     return ReportPackage(
         case_number=case.case_number, subject=draft.get("subject", ""), summary=draft.get("summary", ""),
         reason=draft.get("reason", ""), evidence_summary=draft.get("evidence_summary", ""),

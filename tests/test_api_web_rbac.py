@@ -90,3 +90,15 @@ async def test_web_dashboard_pages(client, make_session_file):
     assert detail.status_code == 200 and "Web case" in detail.text and "Generate draft" in detail.text
     r = await client.get("/sessions", headers={"HX-Request": "true"})
     assert r.status_code == 200 and "<table" in r.text and "<html" not in r.text
+
+
+async def test_dashboard_assets_are_self_hosted(client):
+    """The dashboard must not load third-party scripts or styles (sensitive legal data, offline deployments)."""
+    import re
+
+    html = (await client.get("/login")).text
+    refs = re.findall(r'<(?:script|link)[^>]+(?:src|href)="([^"]+)"', html)
+    assert refs and all(r.startswith("/static/") for r in refs), refs
+    for path in ("/static/app.css", "/static/htmx.min.js"):
+        r = await client.get(path)
+        assert r.status_code == 200 and len(r.content) > 1000, path
