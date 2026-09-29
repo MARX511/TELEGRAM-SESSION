@@ -84,3 +84,46 @@ async def test_ensure_admin_bootstrap(db, monkeypatch):
     await record_audit(db, AuditAction.USER_CREATED, actor="setup", entity_type="user", entity_id=u.id)
     again = (await db.execute(select(func.count(User.id)))).scalar_one()
     assert again == 1 and verify_password("StrongPass1", u.password_hash)
+
+
+async def test_sqlite_backup_includes_uncommitted_wal_and_restore_roundtrip(db, settings, make_session_file):
+    """On SQLite (WAL mode) a live backup must capture recently committed rows, and restore must bring them back."""
+    if not settings.is_sqlite:
+        import pytest as _pytest
+
+        _pytest.skip("SQLite-specific behaviour")
+    from sqlalchemy import func, select
+
+    from app.backup.manager import BackupManager
+    from app.db.models import Target
+    from app.services.targets import create_target
+
+    for i in range(20):
+        await create_target(db, target_type="channel", username=f"wal_{i}", actor="op")
+    await db.commit()
+    mgr = BackupManager(settings)
+    rec = await mgr.backup(db, "database", actor="admin")
+    await db.commit()
+    # the backup file itself must contain all 20 rows (not an empty pre-WAL snapshot)
+    import sqlite3
+    from pathlib import Path
+
+    con = sqlite3.connect(rec.file_path)
+    try:
+        assert con.execute("SELECT count(*) FROM targets").fetchone()[0] == 20
+    finally:
+        con.close()
+    # delete the rows, then restore and confirm they come back with a valid, non-corrupt database
+    from sqlalchemy import delete
+
+    await db.execute(delete(Target))
+    await db.commit()
+    assert (await db.execute(select(func.count(Target.id)))).scalar_one() == 0
+    restored = await mgr.restore(db, rec.id, actor="admin")
+    assert restored.restored_at is not None
+    from app.db.engine import get_session_factory
+
+    async with get_session_factory()() as fresh:
+        assert (await fresh.execute(select(func.count(Target.id)))).scalar_one() == 20
+        # integrity: a corrupt swap would fail this
+        assert (await fresh.execute(select(func.count()).select_from(Target))).scalar_one() == 20

@@ -38,32 +38,75 @@ class BackupManager:
         return {"host": u.hostname or "localhost", "port": str(u.port or 5432), "user": u.username or "",
                 "password": u.password or "", "dbname": u.path.lstrip("/")}
 
+    def _sqlite_path(self) -> Path:
+        # sqlite+aiosqlite:///./data/x.db -> ./data/x.db ; ...////abs/x.db -> /abs/x.db ; ...///C:/x.db -> C:/x.db
+        return Path(self.settings.database_url.split("///", 1)[1])
+
+    @staticmethod
+    def _sqlite_online_copy(src: Path, dst: Path) -> None:
+        """Copy a SQLite database through SQLite's own online backup API. Reads through the pager so committed
+        rows sitting in the WAL are included (a plain file copy would miss them), and produces a complete,
+        standalone destination database with no separate -wal to reapply."""
+        import sqlite3
+
+        source = sqlite3.connect(str(src), timeout=30)
+        try:
+            dest = sqlite3.connect(str(dst))
+            try:
+                source.backup(dest)
+            finally:
+                dest.close()
+        finally:
+            source.close()
+
     async def _backup_database(self) -> Path:
         out = self.settings.backup_root / f"db_{self._stamp()}"
         if self.settings.is_sqlite:
-            src = Path(self.settings.database_url.split("///", 1)[1])
             out = out.with_suffix(".sqlite")
-            shutil.copy2(src, out)
+            await asyncio.to_thread(self._sqlite_online_copy, self._sqlite_path(), out)
             return out
         pg = self._pg_parts()
         out = out.with_suffix(".dump")
         env = {**os.environ, "PGPASSWORD": pg["password"]}
         cmd = ["pg_dump", "-h", pg["host"], "-p", pg["port"], "-U", pg["user"], "-Fc", "-f", str(out), pg["dbname"]]
-        proc = await asyncio.to_thread(subprocess.run, cmd, env=env, capture_output=True, text=True)
+        try:
+            proc = await asyncio.to_thread(subprocess.run, cmd, env=env, capture_output=True, text=True)
+        except FileNotFoundError:
+            raise ValidationFailed("pg_dump not found on PATH. Install the PostgreSQL client tools (on Windows add "
+                                   "e.g. C:\\Program Files\\PostgreSQL\\16\\bin to PATH), or use the SQLite database.")
         if proc.returncode != 0:
             raise ValidationFailed(f"pg_dump failed: {proc.stderr.strip()[:500]}")
         return out
 
-    async def _restore_database(self, path: Path) -> None:
+    async def _restore_database(self, path: Path, db: AsyncSession, rec_snapshot: dict, *, actor: str | None,
+                                now: datetime) -> None:
+        """Postgres: pg_restore. SQLite: swap the file while the engine holds no connection, then record the
+        restore INTO the restored database via a fresh session. The BackupRecord row does not survive the swap
+        (a backup does not contain a record of itself), so it is re-inserted with restored_at set via merge."""
         if self.settings.is_sqlite:
-            dst = Path(self.settings.database_url.split("///", 1)[1])
-            shutil.copy2(path, dst)
+            from app.db.engine import get_session_factory, reset_engine
+
+            dst = self._sqlite_path()
+            await db.close()          # release this session's snapshot so the file is not locked (Windows) or stale
+            await reset_engine()      # drop every pooled connection to the old file
+            for suffix in ("", "-wal", "-shm"):
+                Path(str(dst) + suffix).unlink(missing_ok=True)
+            await asyncio.to_thread(self._sqlite_online_copy, path, dst)
+            async with get_session_factory()() as fresh:  # fresh engine -> sees the restored file
+                await fresh.merge(BackupRecord(**{**rec_snapshot, "restored_at": now}))
+                await record_audit(fresh, AuditAction.BACKUP_RESTORED, actor=actor, entity_type="backup",
+                                   entity_id=rec_snapshot["id"], details={"type": "database", "file": path.name})
+                await fresh.commit()
             return
         pg = self._pg_parts()
         env = {**os.environ, "PGPASSWORD": pg["password"]}
         cmd = ["pg_restore", "-h", pg["host"], "-p", pg["port"], "-U", pg["user"], "-d", pg["dbname"], "--clean",
                "--if-exists", "--no-owner", str(path)]
-        proc = await asyncio.to_thread(subprocess.run, cmd, env=env, capture_output=True, text=True)
+        try:
+            proc = await asyncio.to_thread(subprocess.run, cmd, env=env, capture_output=True, text=True)
+        except FileNotFoundError:
+            raise ValidationFailed("pg_restore not found on PATH. Install the PostgreSQL client tools, or use the "
+                                   "SQLite database.")
         if proc.returncode != 0:
             raise ValidationFailed(f"pg_restore failed: {proc.stderr.strip()[:500]}")
 
@@ -129,18 +172,31 @@ class BackupManager:
         if not await self.verify(db, backup_id):
             raise ValidationFailed("backup integrity check failed; refusing to restore")
         p = Path(rec.file_path)
+        now = datetime.now(timezone.utc)
         if rec.backup_type == "database":
-            await self._restore_database(p)
+            # For SQLite this closes the session, swaps the file and records the restore in a fresh session,
+            # because the pre-restore ORM row and audit would not survive replacing the whole database file.
+            snapshot = {c.key: getattr(rec, c.key) for c in BackupRecord.__table__.columns}
+            await self._restore_database(p, db, snapshot, actor=actor, now=now)
+            if self.settings.is_sqlite:
+                fresh = await self.get_backup_after_restore(rec.id)
+                return fresh or rec
         elif rec.backup_type in ("sessions", "evidence"):
             root = self.settings.sessions_root if rec.backup_type == "sessions" else self.settings.evidence_root
             with tarfile.open(p, "r:gz") as tf:
                 tf.extractall(root.parent, filter="data")
         else:
             raise ValidationFailed("config backups are for reference; apply them manually")
-        rec.restored_at = datetime.now(timezone.utc)
+        rec.restored_at = now
         await record_audit(db, AuditAction.BACKUP_RESTORED, actor=actor, entity_type="backup", entity_id=rec.id,
                            details={"type": rec.backup_type, "file": p.name})
         return rec
+
+    async def get_backup_after_restore(self, backup_id: str) -> BackupRecord | None:
+        from app.db.engine import get_session_factory
+
+        async with get_session_factory()() as fresh:
+            return await fresh.get(BackupRecord, backup_id)
 
     async def list_backups(self, db: AsyncSession) -> list[BackupRecord]:
         return list((await db.execute(select(BackupRecord).order_by(BackupRecord.created_at.desc()))).scalars().all())
