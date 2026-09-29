@@ -9,7 +9,7 @@ from app.schemas import ConfirmIn, Page, ResponseIn, ResponseOut, SubmissionCrea
 from app.security import rbac
 from app.services import cases as case_service
 from app.services import submissions as svc
-from app.submission.channels import OFFICIAL_EMAIL_RECIPIENTS, OFFICIAL_PORTALS
+from app.submission.channels import official_channels, official_email_recipients, official_portals
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
@@ -29,8 +29,11 @@ async def stats(db: AsyncSession = Depends(get_db), _: User = Depends(rbac.requi
 
 @router.get("/channels")
 async def channels(_: User = Depends(rbac.require(rbac.P_SUBMISSIONS_READ))):
-    return {"manual": "operator files via official channel and confirms", "official_portal": OFFICIAL_PORTALS,
-            "official_email": OFFICIAL_EMAIL_RECIPIENTS, "official_api": "not available (no documented public API)"}
+    return {"manual": "operator files via official channel and confirms",
+            "official_portal": official_portals(), "official_email": official_email_recipients(),
+            "official_api": "not available (no documented public API)",
+            "catalog": [{"key": c.key, "kind": c.kind, "label": c.label_en, "how": c.how_en}
+                        for c in official_channels()]}
 
 
 @router.post("/cases/{case_id}", response_model=SubmissionOut, status_code=201)

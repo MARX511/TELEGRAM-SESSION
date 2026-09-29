@@ -25,16 +25,84 @@ from app.config import Settings, get_settings
 from app.domain.enums import ExecutionStatus, SubmissionChannel
 from app.services.errors import SubmissionError
 
-# Documented official contact points (see docs/CASE_WORKFLOW.md). Data, not behaviour; extend via settings if needed.
-OFFICIAL_EMAIL_RECIPIENTS: dict[str, str] = {
-    "abuse@telegram.org": "Illegal content / abuse",
-    "dmca@telegram.org": "Copyright (DMCA)",
-    "stopca@telegram.org": "Child safety",
-}
-OFFICIAL_PORTALS: dict[str, str] = {
-    "in_app_report": "Report button inside the official Telegram apps",
-    "telegram_support": "https://telegram.org/support",
-}
+# ---------------------------------------------------------------------------------------------------------------
+# Telegram's documented official reporting channels (see docs/CASE_WORKFLOW.md). Data only: none of these use a
+# user account or a .session file — they are the addresses/portals a human files a report through. The operator
+# never types them by hand; the case's reason carries the right default and the pickers below list the rest.
+# Add channels for your own jurisdiction (e.g. a national DSA point of contact) without editing code by setting
+# OFFICIAL_CHANNELS_EXTRA in .env — see app/config.py.
+# ---------------------------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class OfficialChannel:
+    key: str                       # email address, or a portal id / @handle / URL
+    kind: str                      # "email" | "portal"
+    label_en: str
+    label_ar: str
+    how_en: str = ""               # how a human reaches it (URL, in-app path); shown as a hint
+    how_ar: str = ""
+
+
+# Long-standing, publicly documented official channels. Emails go to @telegram.org; portals are the in-app report,
+# the public reporting handles/channels, the support page and the EU DSA illegal-content form.
+BASE_OFFICIAL_CHANNELS: tuple[OfficialChannel, ...] = (
+    OfficialChannel("abuse@telegram.org", "email", "Illegal content, terrorism, fraud, impersonation, doxxing",
+                    "محتوى غير قانوني، إرهاب، احتيال، انتحال، تشهير"),
+    OfficialChannel("dmca@telegram.org", "email", "Copyright (DMCA)", "انتهاك حقوق النشر (DMCA)"),
+    OfficialChannel("stopca@telegram.org", "email", "Child sexual abuse material", "مواد إساءة معاملة الأطفال"),
+    OfficialChannel("sticker-abuse@telegram.org", "email", "Abusive stickers or emoji", "ملصقات أو رموز مسيئة"),
+    OfficialChannel("in_app_report", "portal", "Report button inside the Telegram apps",
+                    "زر الإبلاغ داخل تطبيق تيليجرام",
+                    "Open the chat/message → Report", "افتح المحادثة أو الرسالة ← إبلاغ"),
+    OfficialChannel("@isiswatch", "portal", "Terrorist content", "المحتوى الإرهابي",
+                    "Forward the content to @ISISwatch", "أعد توجيه المحتوى إلى @ISISwatch"),
+    OfficialChannel("@notoscam", "portal", "Scam bots and accounts", "بوتات وحسابات الاحتيال",
+                    "Report to @notoscam", "أبلغ عبر @notoscam"),
+    OfficialChannel("telegram_support", "portal", "General support", "الدعم العام",
+                    "https://telegram.org/support", "https://telegram.org/support"),
+    OfficialChannel("dsa_report", "portal", "EU illegal-content report (Digital Services Act)",
+                    "بلاغ محتوى غير قانوني في الاتحاد الأوروبي (DSA)",
+                    "https://telegram.org/dsa", "https://telegram.org/dsa"),
+)
+
+
+def _extra_channels(settings: Settings | None) -> tuple[OfficialChannel, ...]:
+    raw = (settings or get_settings()).official_channels_extra or []
+    out: list[OfficialChannel] = []
+    for item in raw:
+        try:
+            key = str(item["key"]).strip()
+            kind = str(item.get("kind", "email")).lower()
+            if not key or kind not in ("email", "portal"):
+                continue
+            label = str(item.get("label") or key)
+            out.append(OfficialChannel(key.lower() if kind == "email" else key.lower(), kind, label, label,
+                                       str(item.get("how", "")), str(item.get("how", ""))))
+        except (KeyError, TypeError, AttributeError):
+            continue
+    return tuple(out)
+
+
+def official_channels(settings: Settings | None = None) -> list[OfficialChannel]:
+    """Base catalog plus any OFFICIAL_CHANNELS_EXTRA from settings, de-duplicated by key (extras win)."""
+    by_key: dict[str, OfficialChannel] = {c.key: c for c in BASE_OFFICIAL_CHANNELS}
+    for c in _extra_channels(settings):
+        by_key[c.key] = c
+    return list(by_key.values())
+
+
+def official_email_recipients(settings: Settings | None = None) -> dict[str, str]:
+    return {c.key: c.label_en for c in official_channels(settings) if c.kind == "email"}
+
+
+def official_portals(settings: Settings | None = None) -> dict[str, str]:
+    return {c.key: (c.how_en or c.label_en) for c in official_channels(settings) if c.kind == "portal"}
+
+
+# Backward-compatible module-level views of the base catalog (used by the API schema and older imports).
+OFFICIAL_EMAIL_RECIPIENTS: dict[str, str] = {c.key: c.label_en for c in BASE_OFFICIAL_CHANNELS if c.kind == "email"}
+OFFICIAL_PORTALS: dict[str, str] = {c.key: (c.how_en or c.label_en) for c in BASE_OFFICIAL_CHANNELS if c.kind == "portal"}
 
 
 @dataclass
@@ -135,12 +203,13 @@ class OfficialPortalChannel:
 
     async def submit(self, package: ReportPackage, recipient: str | None, *, approved_by: str,
                      attachments: list[Attachment] | None = None) -> SubmitOutcome:
+        portals = official_portals(self.settings)
         portal = (recipient or "in_app_report").lower()
-        if portal not in OFFICIAL_PORTALS:
-            raise SubmissionError(f"unknown official portal '{recipient}'. Known: {', '.join(OFFICIAL_PORTALS)}")
+        if portal not in portals:
+            raise SubmissionError(f"unknown official portal '{recipient}'. Known: {', '.join(portals)}")
         path = _write_artifact(self.settings, package, ".txt", package.as_text())
         return SubmitOutcome(status=ExecutionStatus.WAITING, artifact_path=str(path),
-                             result=f"package prepared for '{portal}' ({OFFICIAL_PORTALS[portal]}); awaiting operator confirmation")
+                             result=f"package prepared for '{portal}' ({portals[portal]}); awaiting operator confirmation")
 
 
 class OfficialEmailChannel:
@@ -172,9 +241,10 @@ class OfficialEmailChannel:
         if not recipient:
             raise SubmissionError("recipient is required for official email")
         rcpt = recipient.strip().lower()
-        if rcpt not in OFFICIAL_EMAIL_RECIPIENTS:
+        recipients = official_email_recipients(self.settings)
+        if rcpt not in recipients:
             raise SubmissionError(f"'{recipient}' is not an allow-listed official address: "
-                                  f"{', '.join(OFFICIAL_EMAIL_RECIPIENTS)}")
+                                  f"{', '.join(recipients)}")
         if not approved_by:
             raise SubmissionError("explicit approval is required before sending")
         msg = self.build_message(package, rcpt, attachments)

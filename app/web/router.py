@@ -27,7 +27,7 @@ from app.services import proxies as proxy_service, reasons as reason_service, se
 from app.services import submissions as submission_service, targets as target_service
 from app.services.audit import record_audit, search_audit
 from app.services.errors import AppError
-from app.submission.channels import OFFICIAL_EMAIL_RECIPIENTS, OFFICIAL_PORTALS
+from app.submission import channels as channels_module
 from app.telegram.validator import provider_status
 from app.utils import loads
 from app.web import charts
@@ -403,7 +403,12 @@ async def case_detail(request: Request, case_id: str, db: AsyncSession = Depends
                   evidence_types=[e.value for e in EvidenceType],
                   # the "official API" channel only refuses (no documented reporting API), so it is not offered here
                   channels=[c.value for c in SubmissionChannel if c != SubmissionChannel.OFFICIAL_API],
-                  emails=OFFICIAL_EMAIL_RECIPIENTS, portals=OFFICIAL_PORTALS, email_ready=_email_ready())
+                  official_channels=channels_module.official_channels(),
+                  channel_defaults={
+                      "official_email": await submission_service.default_recipient(db, case, SubmissionChannel.OFFICIAL_EMAIL),
+                      "official_portal": await submission_service.default_recipient(db, case, SubmissionChannel.OFFICIAL_PORTAL),
+                  },
+                  email_ready=_email_ready())
 
 
 @router.post("/cases/{case_id}/action/{action}")

@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     quarantine_failure_threshold: int = Field(3, ge=1)
 
     submission_email_enabled: bool = False
+    # Extra official reporting channels for your jurisdiction, as a JSON list, without editing code. Example:
+    # OFFICIAL_CHANNELS_EXTRA=[{"key":"legal@example.gov","kind":"email","label":"National regulator"}]
+    official_channels_extra: list[dict] = Field(default_factory=list)
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_user: str | None = None
