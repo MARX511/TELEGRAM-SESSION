@@ -16,6 +16,7 @@ Flags:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import subprocess
 import sys
@@ -48,14 +49,29 @@ def run(cmd: list[str], *, check: bool = True) -> int:
     return proc.returncode
 
 
+INSTALL_TARGET = ".[telegram]"   # the platform plus telethon, used when TELEGRAM_PROVIDER=telethon
+INSTALL_STAMP = VENV / ".tglegal-install"
+
+
+def install_fingerprint() -> str:
+    """Changes whenever the dependencies change, so a newer download of the project re-installs them."""
+    return hashlib.sha256((ROOT / "pyproject.toml").read_bytes() + INSTALL_TARGET.encode()).hexdigest()
+
+
 def ensure_venv() -> None:
-    if VENV_PY.exists():
-        return
-    step("Creating the virtual environment (.venv)")
-    run([sys.executable, "-m", "venv", str(VENV)])
-    step("Installing the platform. This can take a few minutes on the first run")
+    if not VENV_PY.exists():
+        step("Creating the virtual environment (.venv)")
+        run([sys.executable, "-m", "venv", str(VENV)])
+    fingerprint = install_fingerprint()
+    try:
+        if INSTALL_STAMP.read_text(encoding="utf-8").strip() == fingerprint:
+            return
+    except OSError:
+        pass
+    step("Installing the platform and its dependencies. This can take a few minutes")
     run([str(VENV_PY), "-m", "pip", "install", "--upgrade", "pip"], check=False)
-    run([str(VENV_PY), "-m", "pip", "install", "-e", "."])
+    run([str(VENV_PY), "-m", "pip", "install", "-e", INSTALL_TARGET])
+    INSTALL_STAMP.write_text(fingerprint, encoding="utf-8")
 
 
 def ensure_env() -> None:

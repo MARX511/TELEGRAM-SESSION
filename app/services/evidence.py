@@ -122,6 +122,39 @@ async def verify_evidence(db: AsyncSession, ev: Evidence, actor: str | None = No
     return ok
 
 
+async def collect_attachments(db: AsyncSession, case_id: str, evidence_ids: list[str], *, max_total: int,
+                              purpose: str, actor: str | None = None) -> tuple[list[dict], list[dict]]:
+    """File evidence for an official email, oldest first. Each file is re-hashed and only attached when it still
+    matches its recorded sha256; the total is capped. Returns (attached, skipped) and records custody for both."""
+    if not evidence_ids:
+        return [], []
+    rows = (await db.execute(select(Evidence).where(Evidence.case_id == case_id, Evidence.id.in_(evidence_ids))
+                             .order_by(Evidence.created_at, Evidence.id))).scalars().all()
+    attached: list[dict] = []
+    skipped: list[dict] = []
+    total = 0
+    for ev in rows:
+        if not ev.storage_path:
+            continue  # links / references travel in the report text itself
+        name = ev.original_name or Path(ev.storage_path).name
+        p = Path(ev.storage_path)
+        if p.exists() and total + p.stat().st_size > max_total:
+            skipped.append({"file": name, "reason": "size"})  # not read into memory at all
+            continue
+        data = p.read_bytes() if p.exists() else None
+        if data is None or sha256_bytes(data) != ev.sha256:
+            ev.integrity_ok = False
+            ev.last_verified_at = _now()
+            _custody(db, ev, "verified", actor, ev.sha256, f"MISMATCH/MISSING: not attached to {purpose}")
+            skipped.append({"file": name, "reason": "integrity"})
+            continue
+        total += len(data)
+        _custody(db, ev, "exported", actor, ev.sha256, f"attached to {purpose}")
+        attached.append({"filename": name, "mime_type": ev.mime_type or "application/octet-stream", "data": data,
+                         "sha256": ev.sha256})
+    return attached, skipped
+
+
 async def verify_case_evidence(db: AsyncSession, case: Case, actor: str | None = None) -> dict:
     items = await list_evidence(db, case.id)
     results = {ev.id: await verify_evidence(db, ev, actor) for ev in items}

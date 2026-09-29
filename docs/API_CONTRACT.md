@@ -13,6 +13,7 @@
 | GET | `/sessions` | `sessions:read` | filters: status, health, location, group_id, search, sort, order |
 | GET | `/sessions/stats` · `/sessions/health` · `/sessions/{id}` · `/sessions/{id}/health` · `/sessions/{id}/checks` | `sessions:read` | |
 | POST | `/sessions/scan` | `sessions:write` | اكتشاف الملفات |
+| POST | `/sessions/upload` | `sessions:write` | رفع ملفات `.session` أو `.zip` (multipart: `files`، و`check` لجدولة الفحص)؛ يُتحقق من كل ملف ويُتجاهل المكرّر |
 | POST | `/sessions/check` | `sessions:check` | body: `session_ids|status|group_id|location, inline` — يضع مهام أو ينفّذ فورًا بحد التزامن |
 | POST | `/sessions/{id}/check?force=` | `sessions:check` | |
 | PATCH | `/sessions/{id}` | `sessions:write` | group_id, proxy_id, tags |

@@ -100,6 +100,9 @@
       </div>
     </div>
     {% else %}{{ empty(_('No submissions yet.'), 'send') }}{% endfor %}
+    {% if submissions|selectattr('status', 'in', ['COMPLETED', 'WAITING'])|list %}
+    <p class="hint-box">{{ icon('circle-alert') }}<span>{{ _('Telegram usually does not answer each report individually. If the target is removed or restricted (its link shows it is unavailable), record the response as Accepted; the case then moves to Completed.') }}</span></p>
+    {% endif %}
     {% if case.status == 'Ready' and has_permission(user, rbac.P_SUBMISSIONS_WRITE) %}
     <form method="post" action="/cases/{{ case.id }}/submissions" class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end mt-2">
       <div><label class="field-label" for="s-ch">{{ _('Channel') }}</label><select id="s-ch" name="channel" class="select">{% for c in channels %}<option value="{{ c }}">{{ L(c) }}</option>{% endfor %}</select></div>
@@ -108,6 +111,11 @@
       <button class="btn btn-primary">{{ icon('send') }}{{ _('Create submission') }}</button>
       <label class="md:col-span-4 flex items-center gap-2 text-xs muted"><input type="checkbox" name="execute" value="1" class="checkbox">{{ _('Run it now (explicit approval, recorded in the audit log)') }}</label>
     </form>
+    <ul class="provider-steps">
+      <li>{{ _('Official email: sent once to the official Telegram address you choose, with the file evidence attached.') }}
+        {% if not email_ready %}<b>{{ _('Email is not set up yet, so an .eml file is created in the exports folder for you to send from your own mailbox.') }}</b>{% endif %}</li>
+      <li>{{ _('Manual / official portal: you file the report yourself with the report button in the Telegram app or at telegram.org/support, then confirm it here with the reference.') }}</li>
+    </ul>
     {% endif %}
   </div>
 </div>

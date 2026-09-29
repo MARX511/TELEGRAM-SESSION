@@ -30,7 +30,7 @@
     <div class="card-title" style="margin-bottom:.5rem">{{ icon('server') }}{{ _('Environment') }}</div>
     <dl class="kv text-xs">
       <dt>{{ _('Mode') }}</dt><dd><span class="ltr">{{ settings.app_env }}</span></dd>
-      <dt>{{ _('Validation provider') }}</dt><dd><span class="ltr">{{ settings.telegram_provider }}</span></dd>
+      <dt>{{ _('Validation provider') }}</dt><dd>{{ _('Real (Telethon)') if provider.real else _('Simulation') }}{% if provider.real %} · <span style="color:rgb(var(--{{ 'ok' if provider.ready else 'bad' }}))">{{ _('ready') if provider.ready else _('not ready') }}</span>{% endif %}</dd>
       <dt>{{ _('Database') }}</dt><dd><span class="ltr">{{ metrics.database.dialect }}</span></dd>
       <dt>{{ _('Official email (SMTP)') }}</dt><dd>{{ _('On') if settings.submission_email_enabled else _('Off') }}</dd>
       <dt>{{ _('Session encryption') }}</dt><dd>{{ _('On') if settings.session_file_encryption_key else _('Off') }}</dd>

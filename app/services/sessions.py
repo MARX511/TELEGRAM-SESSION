@@ -4,10 +4,19 @@ classifies them; it never performs actions with them."""
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import hashlib
+import os
+import re
 import shutil
+import uuid
+import zipfile
+import zlib
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Protocol
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -128,6 +137,207 @@ async def discover_sessions(db: AsyncSession, settings: Settings | None = None, 
             report.missing += 1
             await record_audit(db, AuditAction.SESSION_CHECKED, actor=actor, entity_type="session", entity_id=s.id,
                                session_id=s.id, result=SessionStatus.UNAVAILABLE.value, reason="file missing")
+    return report
+
+
+# ----------------------------------------------------------------------------- upload / import (§1)
+# Files uploaded from the dashboard or the API are staged in a private folder, validated as real Telethon /
+# Pyrogram session databases, de-duplicated by content, moved into sessions/active under a sanitised name, then
+# registered through the normal discovery path (and encrypted at rest when a key is configured).
+MAX_SESSION_FILE_BYTES = 64 * 1024 * 1024   # a session database is normally well under 1 MB
+MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
+MAX_EXTRACTED_BYTES = 1024 * 1024 * 1024   # across all members of one archive (zip-bomb guard)
+MAX_ARCHIVE_MEMBERS = 5000
+MAX_DEDUPE_DECRYPT = 5000                   # encrypted registry files decrypted to compare content
+_CHUNK = 1 << 20
+_UNSAFE_NAME = re.compile(r"[^\w.\-]+")
+_WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
+
+REJECT_TYPE = "only .session files or a .zip of them are accepted"
+REJECT_TOO_LARGE = "file is too large"
+REJECT_NOT_SESSION = "not a Telethon or Pyrogram session file"
+REJECT_BAD_ZIP = "not a readable ZIP archive"
+REJECT_EMPTY_ZIP = "the ZIP contains no .session files"
+REJECT_REASONS = (REJECT_TYPE, REJECT_TOO_LARGE, REJECT_NOT_SESSION, REJECT_BAD_ZIP, REJECT_EMPTY_ZIP)
+
+
+class UploadLike(Protocol):
+    filename: str | None
+
+    async def read(self, size: int = -1) -> bytes: ...
+
+
+@dataclass
+class ImportReport:
+    added: list[str] = field(default_factory=list)
+    duplicates: list[str] = field(default_factory=list)
+    rejected: list[tuple[str, str]] = field(default_factory=list)  # (name, reason)
+    session_ids: list[str] = field(default_factory=list)
+    encrypted: int = 0
+
+    def as_dict(self) -> dict:
+        return {"added": self.added, "duplicates": self.duplicates, "encrypted": self.encrypted,
+                "rejected": [{"file": f, "reason": r} for f, r in self.rejected], "session_ids": self.session_ids}
+
+
+def safe_session_name(name: str) -> str:
+    """Basename only (no directories, no traversal), word characters, dots and dashes, always '.session'."""
+    base = (name or "").replace("\\", "/").rsplit("/", 1)[-1].strip()
+    if base.lower().endswith(".session"):
+        base = base[: -len(".session")]
+    stem = _UNSAFE_NAME.sub("_", base).strip("._-") or "session"
+    if stem.split(".", 1)[0].upper() in _WINDOWS_RESERVED:
+        stem = "_" + stem
+    return stem[:100] + ".session"
+
+
+def _free_destination(folder: Path, name: str) -> Path:
+    stem = name[: -len(".session")]
+    for i in range(1, 100_000):
+        candidate = folder / (name if i == 1 else f"{stem}_{i}.session")
+        if not candidate.exists() and not candidate.with_name(candidate.name + ENC_SUFFIX).exists():
+            return candidate
+    raise ValidationFailed("no free file name in sessions/active")
+
+
+async def _spool(upload: UploadLike, dest: Path, limit: int) -> bool:
+    size = 0
+    with open(dest, "wb") as f:
+        while chunk := await upload.read(_CHUNK):
+            size += len(chunk)
+            if size > limit:
+                return False
+            f.write(chunk)
+    return True
+
+
+def _expand_zip(archive: Path, staging: Path, label: str, report: ImportReport) -> list[tuple[str, str, Path]]:
+    """Extract only *.session members, by basename, with a hard byte cap per member (not trusting the header)."""
+    out: list[tuple[str, str, Path]] = []
+    rejected_before = len(report.rejected)
+    extracted = 0
+    try:
+        zf = zipfile.ZipFile(archive)
+    except (zipfile.BadZipFile, OSError):
+        report.rejected.append((label, REJECT_BAD_ZIP))
+        return out
+    with zf:
+        members = [i for i in zf.infolist() if not i.is_dir()]
+        if len(members) > MAX_ARCHIVE_MEMBERS:
+            report.rejected.append((label, REJECT_TOO_LARGE))
+            return out
+        for info in members:
+            inner = info.filename.replace("\\", "/")
+            base = inner.rsplit("/", 1)[-1]
+            if "__MACOSX/" in inner or base.startswith(".") or not base.lower().endswith(".session"):
+                continue
+            shown = f"{label}/{base}"
+            if info.file_size > MAX_SESSION_FILE_BYTES or extracted + info.file_size > MAX_EXTRACTED_BYTES:
+                report.rejected.append((shown, REJECT_TOO_LARGE))
+                continue
+            dest = staging / f"{uuid.uuid4().hex}.session"
+            size, ok = 0, True
+            try:
+                with zf.open(info) as src, open(dest, "wb") as f:
+                    while chunk := src.read(_CHUNK):
+                        size += len(chunk)
+                        if size > MAX_SESSION_FILE_BYTES or extracted + size > MAX_EXTRACTED_BYTES:
+                            ok = False  # the header lied about the size: stop reading
+                            break
+                        f.write(chunk)
+            except (zipfile.BadZipFile, RuntimeError, NotImplementedError, OSError, EOFError, zlib.error):
+                report.rejected.append((shown, REJECT_BAD_ZIP))  # corrupt, password-protected or unsupported method
+                continue
+            if not ok:
+                report.rejected.append((shown, REJECT_TOO_LARGE))
+                continue
+            extracted += size
+            out.append((shown, base, dest))
+    if not out and len(report.rejected) == rejected_before:
+        report.rejected.append((label, REJECT_EMPTY_ZIP))
+    return out
+
+
+async def _known_plain_hashes(db: AsyncSession, crypto: SessionCrypto) -> set[str]:
+    rows = (await db.execute(select(TelegramSession.file_path, TelegramSession.file_sha256,
+                                    TelegramSession.encrypted))).all()
+    known = {sha for _, sha, enc in rows if sha and not enc}
+    encrypted = [Path(fp) for fp, _, enc in rows if enc]
+    if crypto.enabled and len(encrypted) <= MAX_DEDUPE_DECRYPT:
+        def _hash_all() -> set[str]:
+            out = set()
+            for p in encrypted:
+                try:
+                    out.add(hashlib.sha256(crypto.decrypt_bytes(p)).hexdigest())
+                except (OSError, ValueError):
+                    continue
+            return out
+        known |= await asyncio.to_thread(_hash_all)
+    return known
+
+
+async def import_uploads(db: AsyncSession, uploads: Iterable[UploadLike], *, actor: str | None = None,
+                         settings: Settings | None = None) -> ImportReport:
+    settings = settings or get_settings()
+    settings.ensure_dirs()
+    report = ImportReport()
+    active = settings.sessions_root / SessionLocation.ACTIVE.value
+    active.mkdir(parents=True, exist_ok=True)
+    staging = settings.sessions_root / ".incoming" / uuid.uuid4().hex
+    staging.mkdir(parents=True, exist_ok=True)
+    crypto = SessionCrypto(settings.session_file_encryption_key)
+    placed: list[Path] = []
+    try:
+        candidates: list[tuple[str, str, Path]] = []  # (name shown to the user, original file name, staged path)
+        for up in uploads:
+            label = (getattr(up, "filename", None) or "").replace("\\", "/").rsplit("/", 1)[-1].strip() or "file"
+            low = label.lower()
+            if low.endswith(".zip"):
+                staged = staging / f"{uuid.uuid4().hex}.zip"
+                if not await _spool(up, staged, MAX_ARCHIVE_BYTES):
+                    report.rejected.append((label, REJECT_TOO_LARGE))
+                    continue
+                candidates += await asyncio.to_thread(_expand_zip, staged, staging, label, report)
+            elif low.endswith(".session"):
+                staged = staging / f"{uuid.uuid4().hex}.session"
+                if not await _spool(up, staged, MAX_SESSION_FILE_BYTES):
+                    report.rejected.append((label, REJECT_TOO_LARGE))
+                    continue
+                candidates.append((label, label, staged))
+            else:
+                report.rejected.append((label, REJECT_TYPE))
+        known = await _known_plain_hashes(db, crypto) if candidates else set()
+        for shown, original, staged in candidates:
+            info = inspect_session_file(staged)
+            if info.fmt not in ("telethon", "pyrogram"):
+                report.rejected.append((shown, REJECT_NOT_SESSION))
+                continue
+            digest = sha256_file(staged)
+            if digest in known:
+                report.duplicates.append(shown)
+                continue
+            dest = _free_destination(active, safe_session_name(original))
+            shutil.move(str(staged), str(dest))
+            with contextlib.suppress(OSError):
+                os.chmod(dest, 0o600)
+            known.add(digest)
+            placed.append(dest)
+            report.added.append(dest.name)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    if placed:
+        await discover_sessions(db, settings, actor=actor)
+        wanted = [str(p.resolve()) for p in placed]
+        rows = (await db.execute(select(TelegramSession).where(TelegramSession.file_path.in_(wanted)))).scalars().all()
+        for s in rows:
+            if crypto.enabled:
+                await encrypt_session_file(db, s, crypto, actor=actor)
+                report.encrypted += 1
+            report.session_ids.append(s.id)
+    await record_audit(db, AuditAction.SESSION_UPLOADED, actor=actor, entity_type="session",
+                       result=f"{len(report.added)} added", details={
+                           "added": report.added, "duplicates": report.duplicates, "encrypted": report.encrypted,
+                           "rejected": [{"file": f, "reason": r} for f, r in report.rejected]})
     return report
 
 

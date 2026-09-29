@@ -37,12 +37,21 @@ EVIDENCE_ROOT=./evidence_store
 BACKUP_ROOT=./backups
 EXPORT_ROOT=./exports
 
-# Default provider does not connect to Telegram. Switch to 'telethon' (health/auth checks only) in a
-# network that allows it, and set TELEGRAM_API_ID / TELEGRAM_API_HASH.
+# Default provider does not connect to Telegram. For real checks (connect, confirm the session is authorised,
+# disconnect) set TELEGRAM_PROVIDER=telethon and your own API ID / hash from https://my.telegram.org, then remove
+# the leading '# ' from the two lines below.
 TELEGRAM_PROVIDER=simulation
+# TELEGRAM_API_ID=123456
+# TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
 
-# Official-email submission stays off until you enable it and configure an SMTP relay you are authorised to use.
+# Official-email submission stays off until you enable it and configure a mailbox you are authorised to use.
+# Example (Gmail with an app password): remove the leading '# ' and fill in your address.
 SUBMISSION_EMAIL_ENABLED=false
+# SMTP_HOST=smtp.gmail.com
+# SMTP_PORT=587
+# SMTP_USER=you@gmail.com
+# SMTP_PASSWORD=your-16-character-app-password
+# SMTP_FROM=you@gmail.com
 """
 
 

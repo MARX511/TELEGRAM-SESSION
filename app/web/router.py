@@ -1,4 +1,5 @@
-"""Server-rendered dashboard (§22–§26). Uses the same services as the JSON API; never touches session files.
+"""Server-rendered dashboard (§22–§26). Uses the same services as the JSON API; session files are only ever
+written by the sessions service (upload/import), never directly by a route.
 
 Bilingual (Arabic default / English) and themed (dark default / light): the language and theme come from cookies
 and are injected by render(), so every template gets `_`, `L`, `lang`, `dir` and `theme`."""
@@ -27,6 +28,7 @@ from app.services import submissions as submission_service, targets as target_se
 from app.services.audit import record_audit, search_audit
 from app.services.errors import AppError
 from app.submission.channels import OFFICIAL_EMAIL_RECIPIENTS, OFFICIAL_PORTALS
+from app.telegram.validator import provider_status
 from app.utils import loads
 from app.web import charts
 from app.web.i18n import (LANG_COOKIE, LANGS, STATUS_TONES, THEME_COOKIE, THEMES, direction, get_lang, get_theme,
@@ -39,6 +41,7 @@ templates.env.globals.update(now=lambda: datetime.now(timezone.utc), loads=loads
                              rbac=rbac, TONES=STATUS_TONES)
 PREF_MAX_AGE = 60 * 60 * 24 * 365
 FLASH_COOKIE = "flash"
+UPLOAD_MAX_FILES = 500
 
 
 class Tr:
@@ -57,6 +60,11 @@ class Tr:
 
     def error(self, exc: Exception) -> str:
         return self("Error: {message}", message=getattr(exc, "message", str(exc)))
+
+
+def _email_ready() -> bool:
+    s = get_settings()
+    return bool(s.submission_email_enabled and s.smtp_host and s.smtp_from)
 
 
 def _safe_next(target: str | None) -> str:
@@ -189,8 +197,10 @@ async def sessions_page(request: Request, status: str | None = None, health: str
                                                       order=order, limit=limit, offset=(page - 1) * limit)
     tpl = "partials/sessions_table.html" if request.headers.get("HX-Request") else "sessions.html"
     return render(request, tpl, user, rows=rows, total=total, page=page, pages=max(1, -(-total // limit)),
-                  stats=await session_service.session_stats(db), filters={"status": status, "health": health,
-                  "location": location, "search": search, "sort": sort, "order": order})
+                  stats=await session_service.session_stats(db), provider=provider_status(),
+                  upload_limit_mb=session_service.MAX_SESSION_FILE_BYTES // (1024 * 1024),
+                  filters={"status": status, "health": health, "location": location, "search": search, "sort": sort,
+                           "order": order})
 
 
 @router.post("/sessions/scan")
@@ -201,6 +211,37 @@ async def sessions_scan(request: Request, db: AsyncSession = Depends(get_db), us
     t = Tr(request)
     return redirect("/sessions", t("Scan complete: {found} found, {new} new, {missing} missing",
                                    found=rep.discovered, new=rep.new, missing=rep.missing))
+
+
+@router.post("/sessions/upload")
+async def sessions_upload(request: Request, db: AsyncSession = Depends(get_db), queue: JobQueue = Depends(get_queue),
+                          user: User | None = Depends(get_current_user_optional)):
+    if (r := await need(request, user, rbac.P_SESSIONS_WRITE)):
+        return r
+    t = Tr(request)
+    form = await request.form(max_files=UPLOAD_MAX_FILES)
+    files = [f for f in form.getlist("files") if getattr(f, "filename", "")]
+    if not files:
+        return redirect("/sessions", t("Choose .session files or a .zip to upload"), error=True)
+    try:
+        rep = await session_service.import_uploads(db, files, actor=user.username)
+    finally:
+        for f in files:
+            await f.close()
+    queued = 0
+    if form.get("check") and rbac.has_permission(user, rbac.P_SESSIONS_CHECK):
+        for sid in rep.session_ids:
+            await queue.enqueue("session.check", {"session_id": sid}, requested_by=user.username, db=db)
+            queued += 1
+    msg = t("Upload finished: {added} added, {dup} already registered, {bad} rejected",
+            added=len(rep.added), dup=len(rep.duplicates), bad=len(rep.rejected))
+    if rep.rejected:  # the flash lives in a cookie: name at most three files
+        sep = "، " if t.lang == "ar" else ", "
+        msg += " — " + sep.join(f"{name[:40]} ({t(reason)})" for name, reason in rep.rejected[:3])
+        msg += " …" if len(rep.rejected) > 3 else ""
+    if queued:
+        msg += " · " + t("{n} health checks queued", n=queued)
+    return redirect("/sessions", msg, error=not rep.added and bool(rep.rejected))
 
 
 @router.post("/sessions/check-all")
@@ -359,8 +400,10 @@ async def case_detail(request: Request, case_id: str, db: AsyncSession = Depends
                   evidence=await evidence_service.list_evidence(db, case.id), submissions=subs,
                   history=await case_service.case_history(db, case), reasons=await reason_service.list_reasons(db),
                   allowed=[s.value for s in CASE_TRANSITIONS[CaseStatus(case.status)]],
-                  evidence_types=[e.value for e in EvidenceType], channels=[c.value for c in SubmissionChannel],
-                  emails=OFFICIAL_EMAIL_RECIPIENTS, portals=OFFICIAL_PORTALS)
+                  evidence_types=[e.value for e in EvidenceType],
+                  # the "official API" channel only refuses (no documented reporting API), so it is not offered here
+                  channels=[c.value for c in SubmissionChannel if c != SubmissionChannel.OFFICIAL_API],
+                  emails=OFFICIAL_EMAIL_RECIPIENTS, portals=OFFICIAL_PORTALS, email_ready=_email_ready())
 
 
 @router.post("/cases/{case_id}/action/{action}")
@@ -563,7 +606,7 @@ async def settings_page(request: Request, db: AsyncSession = Depends(get_db), us
     users = (await db.execute(select(User).order_by(User.username))).scalars().all() if rbac.has_permission(user, rbac.P_USERS_MANAGE) else []
     return render(request, "settings.html", user, metrics=await full_snapshot(db), users=users,
                   backups=await BackupManager().list_backups(db), reasons=await reason_service.list_reasons(db),
-                  permissions=sorted(rbac.ROLE_PERMISSIONS.get(user.role, [])))
+                  permissions=sorted(rbac.ROLE_PERMISSIONS.get(user.role, [])), provider=provider_status())
 
 
 @router.post("/settings/backup/{backup_type}")

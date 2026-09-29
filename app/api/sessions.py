@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,6 +47,24 @@ async def health_all(db: AsyncSession = Depends(get_db), _: User = Depends(rbac.
 async def scan(db: AsyncSession = Depends(get_db), user: User = Depends(rbac.require(rbac.P_SESSIONS_WRITE))):
     rep = await svc.discover_sessions(db, actor=user.username)
     return {"discovered": rep.discovered, "new": rep.new, "updated": rep.updated, "missing": rep.missing}
+
+
+@router.post("/upload")
+async def upload(files: list[UploadFile] = File(...), check: bool = Form(False), db: AsyncSession = Depends(get_db),
+                 queue: JobQueue = Depends(get_queue), user: User = Depends(rbac.require(rbac.P_SESSIONS_WRITE))):
+    """Upload .session files (or .zip archives of them). Each file is validated before it is saved to
+    sessions/active and registered; duplicates by content are skipped."""
+    try:
+        rep = await svc.import_uploads(db, files, actor=user.username)
+    finally:
+        for f in files:
+            await f.close()
+    queued = 0
+    if check and rbac.has_permission(user, rbac.P_SESSIONS_CHECK):
+        for sid in rep.session_ids:
+            await queue.enqueue("session.check", {"session_id": sid}, requested_by=user.username, db=db)
+            queued += 1
+    return {**rep.as_dict(), "checks_queued": queued}
 
 
 @router.post("/check")

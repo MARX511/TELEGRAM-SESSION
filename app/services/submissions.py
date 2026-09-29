@@ -11,10 +11,10 @@ from sqlalchemy.orm import selectinload
 from app.config import Settings, get_settings
 from app.db.models import Case, Evidence, Response, Submission, SubmissionAttempt, Target
 from app.domain.enums import AuditAction, CaseStatus, ErrorCategory, ExecutionStatus, SubmissionChannel
-from app.services import cases as case_service
+from app.services import cases as case_service, evidence as evidence_service
 from app.services.audit import record_audit
 from app.services.errors import NotFoundError, SubmissionError, TransitionError, ValidationFailed, record_error
-from app.submission.channels import ReportPackage, get_channel
+from app.submission.channels import MAX_EMAIL_ATTACHMENT_BYTES, Attachment, ReportPackage, get_channel
 from app.utils import dumps, loads
 
 OPEN_STATUSES = {ExecutionStatus.PENDING.value, ExecutionStatus.RUNNING.value, ExecutionStatus.WAITING.value,
@@ -96,8 +96,16 @@ async def execute_submission(db: AsyncSession, sub: Submission, *, approved_by: 
     sub.approved_by = approved_by
     package_dict = loads(sub.package_json)
     package = ReportPackage(**package_dict)
+    attachments: list[Attachment] = []
+    skipped: list[dict] = []
+    if sub.channel == SubmissionChannel.OFFICIAL_EMAIL.value:
+        found, skipped = await evidence_service.collect_attachments(
+            db, case.id, [e["id"] for e in package.evidence if e.get("id")], max_total=MAX_EMAIL_ATTACHMENT_BYTES,
+            purpose=f"official email {sub.id}", actor=approved_by)
+        attachments = [Attachment(**a) for a in found]
     try:
-        outcome = await get_channel(sub.channel, settings).submit(package, sub.recipient, approved_by=approved_by)
+        outcome = await get_channel(sub.channel, settings).submit(package, sub.recipient, approved_by=approved_by,
+                                                                  attachments=attachments)
     except SubmissionError as exc:
         outcome_status, result, err_code, err_msg, ref, artifact = (ExecutionStatus.FAILED, None,
                                                                     ErrorCategory.SUBMISSION_ERROR.value, exc.message, None, None)
@@ -108,6 +116,8 @@ async def execute_submission(db: AsyncSession, sub: Submission, *, approved_by: 
     attempt.finished_at = _now()
     attempt.status = outcome_status.value
     attempt.result = (result or "") + (f" [artifact: {artifact}]" if artifact else "")
+    if skipped:
+        attempt.result += " [not attached: " + ", ".join(f"{x['file']} ({x['reason']})" for x in skipped) + "]"
     attempt.error_code, attempt.error_message = err_code, err_msg
     sub.status = outcome_status.value
     sub.result = attempt.result
