@@ -1,22 +1,86 @@
-{% extends "base.html" %}{% from "partials/macros.html" import stat %}{% block title %}Settings{% endblock %}{% block content %}
-<h1 class="text-2xl font-semibold mb-4">Settings &amp; monitoring (§32)</h1>
-<div class="grid md:grid-cols-6 gap-3 mb-6">
-{{ stat('CPU %', metrics.system.cpu_percent) }}{{ stat('RAM %', metrics.system.ram.percent) }}{{ stat('Process RSS MB', metrics.system.process.rss_mb) }}
-{{ stat('Disk free GB', metrics.system.disk.free_gb) }}{{ stat('DB ping ms', metrics.database.ping_ms) }}{{ stat('Uptime s', metrics.system.uptime_seconds) }}
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% from "partials/macros.html" import stat, page_header, empty with context %}
+{% block title %}{{ _('Settings') }}{% endblock %}
+{% block content %}
+{{ page_header(_('Settings and monitoring'), _('System health, capacity model, backups, reason catalog and access control.'), 'settings') }}
+<div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 mb-5">
+  {{ stat(_('CPU %'), metrics.system.cpu_percent, 'accent2', 'cpu', 0) }}
+  {{ stat(_('Memory %'), metrics.system.ram.percent, 'accent3', 'gauge', 1) }}
+  {{ stat(_('Process memory (MB)'), metrics.system.process.rss_mb, 'info', 'server', 2) }}
+  {{ stat(_('Free disk (GB)'), metrics.system.disk.free_gb, 'ok', 'hard-drive', 3) }}
+  {{ stat(_('Database ping (ms)'), metrics.database.ping_ms, 'accent', 'database', 4) }}
+  {{ stat(_('Uptime (s)'), metrics.system.uptime_seconds, 'neutral', 'clock', 5) }}
 </div>
-<div class="grid md:grid-cols-3 gap-4 mb-6">
-<div class="bg-white shadow rounded-lg p-4 text-sm"><h3 class="font-semibold mb-2">Queue / workers</h3><ul>{% for k, v in metrics.queue.items() %}<li class="flex justify-between"><span>{{ k }}</span><span>{{ v }}</span></li>{% endfor %}</ul>
-<h4 class="font-semibold mt-3 mb-1">Capacity model (§39)</h4><ul class="text-xs">{% for k, v in metrics.capacity.items() %}<li class="flex justify-between"><span>{{ k }}</span><span>{{ v }}</span></li>{% endfor %}</ul></div>
-<div class="bg-white shadow rounded-lg p-4 text-sm"><h3 class="font-semibold mb-2">Activity (24h)</h3><div>session checks: {{ metrics.activity.session_checks.total }} ({{ metrics.activity.session_checks.succeeded }} ok)</div><div>sessions registered: {{ metrics.activity.sessions_registered }}</div><div>errors: {{ metrics.activity.errors }}</div>
-<h4 class="font-semibold mt-3 mb-1">Environment</h4><div class="text-xs">env={{ settings.app_env }} provider={{ settings.telegram_provider }} db={{ metrics.database.dialect }} smtp={{ 'on' if settings.submission_email_enabled else 'off' }} encryption={{ 'on' if settings.session_file_encryption_key else 'off' }}</div></div>
-<div class="bg-white shadow rounded-lg p-4 text-sm"><h3 class="font-semibold mb-2">Backups (§30)</h3>
-{% if has_permission(user, rbac.P_BACKUPS_MANAGE) %}<div class="flex gap-2 mb-2">{% for t in ['database','sessions','config','evidence'] %}<form method="post" action="/settings/backup/{{ t }}"><button class="border rounded px-2 py-1 text-xs">backup {{ t }}</button></form>{% endfor %}</div>{% endif %}
-<ul class="text-xs">{% for b in backups[:10] %}<li>{{ b.created_at.strftime('%Y-%m-%d %H:%M') }} {{ b.backup_type }} {{ b.file_path.split('/')[-1] }} ({{ b.size_bytes }} B){% if b.restored_at %} restored{% endif %}</li>{% else %}<li class="text-slate-400">none</li>{% endfor %}</ul></div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+  <div class="card reveal">
+    <div class="card-title">{{ icon('layers') }}{{ _('Queue and workers') }}</div>
+    {% for k, v in metrics.queue.items() %}<div class="list-row"><span>{{ L(k) }}</span><span class="num">{{ v }}</span></div>{% endfor %}
+    <div class="divider"></div>
+    <div class="card-title" style="margin-bottom:.5rem">{{ icon('gauge') }}{{ _('Capacity model') }}</div>
+    {% for k, v in metrics.capacity.items() %}<div class="list-row text-xs"><span class="ltr mono muted">{{ k }}</span><span class="num">{{ v }}</span></div>{% endfor %}
+  </div>
+  <div class="card reveal">
+    <div class="card-title">{{ icon('activity') }}{{ _('Activity (24 hours)') }}</div>
+    <div class="list-row"><span>{{ _('Session checks') }}</span><span class="num">{{ metrics.activity.session_checks.total }} <span class="faint text-xs">({{ _('{n} succeeded').format(n=metrics.activity.session_checks.succeeded) }})</span></span></div>
+    <div class="list-row"><span>{{ _('Registered sessions') }}</span><span class="num">{{ metrics.activity.sessions_registered }}</span></div>
+    {% for k, v in metrics.activity.errors.items() %}<div class="list-row"><span>{{ L(k) }}</span><span class="num">{{ v }}</span></div>{% endfor %}
+    <div class="divider"></div>
+    <div class="card-title" style="margin-bottom:.5rem">{{ icon('server') }}{{ _('Environment') }}</div>
+    <dl class="kv text-xs">
+      <dt>{{ _('Mode') }}</dt><dd><span class="ltr">{{ settings.app_env }}</span></dd>
+      <dt>{{ _('Validation provider') }}</dt><dd><span class="ltr">{{ settings.telegram_provider }}</span></dd>
+      <dt>{{ _('Database') }}</dt><dd><span class="ltr">{{ metrics.database.dialect }}</span></dd>
+      <dt>{{ _('Official email (SMTP)') }}</dt><dd>{{ _('On') if settings.submission_email_enabled else _('Off') }}</dd>
+      <dt>{{ _('Session encryption') }}</dt><dd>{{ _('On') if settings.session_file_encryption_key else _('Off') }}</dd>
+    </dl>
+  </div>
+  <div class="card reveal">
+    <div class="card-title">{{ icon('archive') }}{{ _('Backups') }}</div>
+    {% if has_permission(user, rbac.P_BACKUPS_MANAGE) %}
+    <div class="grid grid-cols-2 gap-2 mb-3">
+      {% for t in ['database', 'sessions', 'config', 'evidence'] %}<form method="post" action="/settings/backup/{{ t }}"><button class="btn btn-ghost btn-sm w-full">{{ icon('download') }}{{ L(t) }}</button></form>{% endfor %}
+    </div>
+    {% endif %}
+    {% for b in backups[:8] %}
+    <div class="list-row text-xs"><span>{{ L(b.backup_type) }} · <span class="ltr muted">{{ b.created_at.strftime('%Y-%m-%d %H:%M') }}</span></span><span class="num">{{ ((b.size_bytes or 0) / 1024)|round(1) }} KB{% if b.restored_at %} · {{ _('restored') }}{% endif %}</span></div>
+    {% else %}{{ empty(_('No backups yet.'), 'archive') }}{% endfor %}
+  </div>
 </div>
-<div class="grid md:grid-cols-2 gap-4">
-<div class="bg-white shadow rounded-lg p-4 text-sm"><h3 class="font-semibold mb-2">Reason catalog (§10)</h3><table class="w-full text-xs"><thead class="text-left text-slate-500"><tr><th>Code</th><th>Name</th><th>Policy</th><th>Channel hint</th><th>v</th></tr></thead><tbody>{% for r in reasons %}<tr class="border-t"><td class="py-1">{{ r.code }}</td><td>{{ r.name }}</td><td>{{ r.policy_reference }}</td><td>{{ r.official_channel_hint }}</td><td>{{ r.version }}</td></tr>{% endfor %}</tbody></table></div>
-<div class="bg-white shadow rounded-lg p-4 text-sm"><h3 class="font-semibold mb-2">Users &amp; RBAC (§28)</h3>
-{% if users %}<table class="w-full text-xs"><thead class="text-left text-slate-500"><tr><th>User</th><th>Role</th><th>Active</th><th>Last login</th></tr></thead><tbody>{% for u in users %}<tr class="border-t"><td class="py-1">{{ u.username }}</td><td>{{ u.role }}</td><td>{{ u.is_active }}</td><td>{{ u.last_login_at or '' }}</td></tr>{% endfor %}</tbody></table>{% endif %}
-<div class="mt-2 text-xs text-slate-500">Your permissions: {{ permissions|join(', ') }}</div></div>
+
+<div class="card card-flush reveal mb-4">
+  <div class="card-title" style="padding:1.15rem 1.25rem 0">{{ icon('scale') }}{{ _('Reason catalog') }}</div>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>{{ _('Name') }}</th><th>{{ _('Code') }}</th><th>{{ _('Policy') }}</th><th>{{ _('Official channel') }}</th><th>{{ _('Version') }}</th></tr></thead>
+    <tbody>{% for r in reasons %}
+    <tr><td class="cell-strong" style="min-width:11rem">{{ R(r) }}</td><td><span class="ltr mono text-xs muted">{{ r.code }}</span></td><td class="text-xs muted" style="min-width:14rem"><bdi>{{ r.policy_reference }}</bdi></td><td class="text-xs"><span class="ltr nowrap">{{ r.official_channel_hint }}</span></td><td class="num">{{ r.version }}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+</div>
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+  <div class="card reveal">
+    <div class="card-title">{{ icon('users') }}{{ _('Users and roles') }}</div>
+    {% if users %}
+    <div class="table-wrap"><table class="table">
+      <thead><tr><th>{{ _('User') }}</th><th>{{ _('Role') }}</th><th>{{ _('Active') }}</th><th>{{ _('Last sign-in') }}</th></tr></thead>
+      <tbody>{% for u in users %}<tr><td class="cell-strong">{{ u.username }}</td><td>{{ L(u.role) }}</td><td>{{ _('Yes') if u.is_active else _('No') }}</td><td class="text-xs muted"><span class="ltr">{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}</span></td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% endif %}
+    <p class="text-xs muted mt-3">{{ _('Your permissions') }}:</p>
+    <div class="flex flex-wrap gap-1 mt-2">{% for p in permissions %}<span class="badge tone-neutral ltr">{{ p }}</span>{% endfor %}</div>
+  </div>
+  <div class="card reveal tilt" data-tilt>
+    <div class="card-title">{{ icon('badge-check') }}{{ _('About') }}</div>
+    <div class="flex items-center gap-3">
+      <span class="brand-mark depth">{{ icon('shield-check') }}</span>
+      <div><div class="font-bold">{{ brand }}</div><div class="text-xs muted">{{ _('Version') }} 0.1.0</div></div>
+    </div>
+    <div class="copyright mt-4" style="text-align:start">
+      <div>© {{ now().year }} <span class="owner">{{ copyright_owner }}</span> — {{ _('All rights reserved') }}</div>
+    </div>
+    <div class="divider"></div>
+    <p class="text-xs muted">{{ _('Open-source components') }}: <span class="ltr">three.js (MIT) · IBM Plex (OFL 1.1) · Lucide (ISC) · htmx (BSD-2)</span></p>
+  </div>
 </div>
 {% endblock %}

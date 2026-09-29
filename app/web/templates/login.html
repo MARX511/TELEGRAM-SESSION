@@ -1,12 +1,66 @@
-{% extends "base.html" %}{% block title %}Login{% endblock %}
-{% block content %}
-<div class="max-w-sm mx-auto mt-24 bg-white shadow rounded-lg p-6">
-<h1 class="text-xl font-semibold mb-4">Sign in</h1>
-{% if error %}<div class="text-red-700 text-sm mb-3">{{ error }}</div>{% endif %}
-<form method="post" action="/login" class="space-y-3">
-<input type="hidden" name="next" value="{{ next }}">
-<input name="username" placeholder="username" class="w-full border rounded px-3 py-2" required>
-<input name="password" type="password" placeholder="password" class="w-full border rounded px-3 py-2" required>
-<button class="w-full bg-slate-900 text-white rounded py-2">Login</button>
-</form></div>
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}{{ _('Sign in') }}{% endblock %}
+{% block head %}<script type="module" src="/static/login3d.js"></script>{% endblock %}
+{% block body %}
+<div class="auth">
+  <section class="auth-visual" aria-hidden="false">
+    <div class="visual-fallback"></div>
+    <canvas id="scene" aria-hidden="true"></canvas>
+    <div class="auth-scrim"></div>
+    <div class="auth-copy">
+      <a href="/login" class="brand" style="padding:0" data-scene-top>
+        <span class="brand-mark">{{ icon('shield-check') }}</span>
+        <span><span class="brand-name block">{{ brand }}</span><span class="brand-sub block">{{ _('Sessions · Cases · Official reporting') }}</span></span>
+      </a>
+      <div class="auth-copy-main reveal" style="--i:2" data-scene-avoid>
+        <h2 class="auth-headline">{{ _('Professional management of') }} <span class="gradient-text">{{ _('sessions, cases and official reports') }}</span></h2>
+        <p class="auth-lead">{{ _('A secure local platform: encrypted session files, evidence with a chain of custody, and a full audit trail for every action.') }}</p>
+        <ul class="feature-list">
+          <li class="feature reveal" style="--i:4"><span class="feature-icon">{{ icon('lock') }}</span>{{ _('Session files encrypted at rest') }}</li>
+          <li class="feature reveal" style="--i:5"><span class="feature-icon">{{ icon('fingerprint') }}</span>{{ _('Evidence integrity and chain of custody') }}</li>
+          <li class="feature reveal" style="--i:6"><span class="feature-icon">{{ icon('scale') }}</span>{{ _('Official reporting channels only, fully audited') }}</li>
+        </ul>
+      </div>
+      <p class="text-xs muted">{{ _('Runs locally on your computer · no external services') }}</p>
+    </div>
+  </section>
+
+  <section class="auth-panel">
+    <div class="auth-top">{% include "partials/toggles.html" %}</div>
+    <div class="auth-center">
+      <div class="auth-card glass reveal" style="--i:1">
+        <div class="flex items-center gap-3 mb-6">
+          <span class="page-icon" style="width:2.7rem;height:2.7rem">{{ icon('fingerprint') }}</span>
+          <div><h1>{{ _('Sign in') }}</h1><p class="text-sm muted mt-1">{{ _('Welcome back. Enter your credentials to continue.') }}</p></div>
+        </div>
+        {% if error %}<div class="flash error" role="alert">{{ icon('circle-alert') }}<span>{{ error }}</span></div>{% endif %}
+        <form method="post" action="/login" class="space-y-4" autocomplete="on">
+          <input type="hidden" name="next" value="{{ next }}">
+          <div>
+            <label class="field-label" for="username">{{ _('Username') }}</label>
+            <div class="input-icon">{{ icon('user') }}<input id="username" name="username" class="input" autocomplete="username" autofocus required placeholder="admin"></div>
+          </div>
+          <div>
+            <label class="field-label" for="password">{{ _('Password') }}</label>
+            <div class="input-icon">{{ icon('lock') }}
+              <input id="password" name="password" type="password" class="input has-toggle" autocomplete="current-password" required placeholder="••••••••">
+              <button type="button" class="btn btn-ghost btn-xs btn-icon pw-toggle" data-pw-toggle="password" aria-label="{{ _('Show password') }}" data-tip="{{ _('Show password') }}">{{ icon('eye') }}</button>
+            </div>
+          </div>
+          <button class="btn btn-primary w-full" style="height:2.8rem">{{ _('Sign in') }}{{ icon('arrow-right', 'icon flip-rtl') }}</button>
+        </form>
+        <div class="trust">
+          <span>{{ icon('shield-check') }}{{ _('Encrypted') }}</span>
+          <span>{{ icon('history') }}{{ _('Fully audited') }}</span>
+          <span>{{ icon('hard-drive') }}{{ _('Local only') }}</span>
+        </div>
+      </div>
+    </div>
+    <footer class="copyright">
+      <div>© {{ now().year }} <span class="owner">{{ copyright_owner }}</span> — {{ _('All rights reserved') }}</div>
+      <div class="faint">{{ brand }} · v0.1.0</div>
+    </footer>
+  </section>
+</div>
 {% endblock %}

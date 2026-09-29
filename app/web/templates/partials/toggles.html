@@ -1,0 +1,4 @@
+{% from "partials/icons.html" import icon %}
+<a class="btn btn-ghost btn-sm" href="/lang/{{ 'en' if lang == 'ar' else 'ar' }}?next={{ here|urlencode }}" hreflang="{{ 'en' if lang == 'ar' else 'ar' }}" data-tip="{{ _('Switch language') }}">{{ icon('languages') }}<span>{{ 'English' if lang == 'ar' else 'العربية' }}</span></a>
+<button type="button" class="btn btn-ghost btn-sm btn-icon theme-icons" data-theme-toggle data-tip="{{ _('Switch theme') }}" aria-label="{{ _('Switch theme') }}">{{ icon('sun', 'icon icon-sun') }}{{ icon('moon', 'icon icon-moon') }}</button>
+<noscript><a class="btn btn-ghost btn-sm" href="/theme/{{ 'light' if theme == 'dark' else 'dark' }}?next={{ here|urlencode }}">{{ _('Switch theme') }}</a></noscript>

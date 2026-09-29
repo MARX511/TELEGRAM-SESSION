@@ -1,25 +1,71 @@
-<!doctype html>
-<html lang="en">
+{% from "partials/icons.html" import icon %}<!doctype html>
+<html lang="{{ lang }}" dir="{{ dir }}" data-theme="{{ theme }}">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}Dashboard{% endblock %} · TG Legal Platform</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>{% block title %}{{ _('Dashboard') }}{% endblock %} · {{ brand }}</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="/static/fonts/ibm-plex-sans-arabic-{{ 'arabic' if lang == 'ar' else 'latin' }}-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/app.css">
 <script src="/static/htmx.min.js" defer></script>
+<script src="/static/ui.js" defer></script>
+{% block head %}{% endblock %}
 </head>
-<body class="bg-slate-50 text-slate-800">
-<div class="flex min-h-screen">
-{% if user %}
-<aside class="w-56 bg-slate-900 text-slate-200 p-4 space-y-1 text-sm">
-  <div class="font-bold text-white mb-4">TG Legal Platform</div>
-  {% for href, label in [('/','Dashboard'),('/sessions','Sessions'),('/accounts','Accounts'),('/proxies','Proxies'),('/targets','Targets'),('/cases','Cases'),('/submissions','Submissions'),('/errors','Errors'),('/audit','Audit'),('/reports','Reports'),('/settings','Settings')] %}
-  <a href="{{ href }}" class="block px-3 py-2 rounded hover:bg-slate-700 {% if request.url.path == href %}bg-slate-700 text-white{% endif %}">{{ label }}</a>
-  {% endfor %}
-  <div class="pt-6 text-xs text-slate-400">{{ user.username }} · {{ user.role }}<br><a href="/logout" class="underline">logout</a></div>
-</aside>
-{% endif %}
-<main class="flex-1 p-6">
-  {% if flash %}<div class="mb-4 rounded border border-amber-300 bg-amber-50 px-4 py-2 text-sm">{{ flash }}</div>{% endif %}
-  {% block content %}{% endblock %}
-</main>
+<body>
+{% block body %}
+{% set path = request.url.path %}
+{% set NAV = [
+  (_('Operations'), [('/', _('Dashboard'), 'layout-dashboard'), ('/sessions', _('Sessions'), 'key-round'), ('/accounts', _('Accounts'), 'users'), ('/proxies', _('Proxies'), 'network')]),
+  (_('Casework'), [('/targets', _('Targets'), 'crosshair'), ('/cases', _('Cases'), 'briefcase'), ('/submissions', _('Submissions'), 'send')]),
+  (_('Oversight'), [('/errors', _('Errors'), 'triangle-alert'), ('/audit', _('Audit'), 'scroll-text'), ('/reports', _('Reports'), 'chart-column'), ('/settings', _('Settings'), 'settings')]),
+] %}
+<div class="app">
+  {% if user %}
+  <div class="drawer-backdrop" data-drawer-close></div>
+  <div class="sidebar-rail">
+  <aside class="sidebar" id="sidebar" aria-label="{{ _('Main navigation') }}">
+    <a href="/" class="brand">
+      <span class="brand-mark">{{ icon('shield-check') }}</span>
+      <span><span class="brand-name block">{{ brand }}</span><span class="brand-sub block">{{ _('Sessions · Cases · Official reporting') }}</span></span>
+    </a>
+    {% for section, links in NAV %}
+    <nav class="nav-section">
+      <span class="eyebrow">{{ section }}</span>
+      {% for href, label, ic in links %}
+      {% set active = (path == '/') if href == '/' else path.startswith(href) %}
+      <a href="{{ href }}" class="nav-link{% if active %} active{% endif %}"{% if active %} aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span></a>
+      {% endfor %}
+    </nav>
+    {% endfor %}
+    <div class="sidebar-foot">
+      <div class="user-card glass">
+        <span class="avatar">{{ user.username[:1]|upper }}</span>
+        <span class="min-w-0 flex-1"><span class="block truncate text-sm font-semibold">{{ user.full_name or user.username }}</span><span class="block text-xs muted">{{ L(user.role) }}</span></span>
+        <a href="/logout" class="btn btn-ghost btn-sm btn-icon" data-tip="{{ _('Sign out') }}" aria-label="{{ _('Sign out') }}">{{ icon('log-out', 'icon flip-rtl') }}</a>
+      </div>
+    </div>
+  </aside>
+  </div>
+  {% endif %}
+  <div class="main">
+    <header class="topbar">
+      {% if user %}<button type="button" class="btn btn-ghost btn-icon drawer-toggle" data-drawer-toggle aria-controls="sidebar" aria-label="{{ _('Menu') }}">{{ icon('menu') }}</button>{% endif %}
+      <div class="topbar-title">{% block crumb %}<span class="pulse-dot" aria-hidden="true"></span><span>{{ _('System online') }}</span>{% endblock %}</div>
+      <div class="topbar-actions">{% include "partials/toggles.html" %}</div>
+    </header>
+    <main class="content">
+      {% if flash %}
+      <div class="flash reveal{% if flash_error %} error{% endif %}" role="status" data-flash>
+        {{ icon('circle-alert' if flash_error else 'sparkles') }}<span>{{ flash }}</span>
+        <button type="button" class="btn btn-ghost btn-xs btn-icon" data-flash-close aria-label="{{ _('Dismiss') }}">{{ icon('x') }}</button>
+      </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
 </div>
-</body></html>
+{% endblock %}
+<div class="tooltip" id="tooltip" role="tooltip"></div>
+</body>
+</html>

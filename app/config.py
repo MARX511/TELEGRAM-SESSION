@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     app_debug: bool = False
     app_name: str = "Telegram Session & Legal Reporting Platform"
 
+    # Dashboard branding and copyright (shown on the login screen and the settings page only).
+    brand_name_ar: str = "منصة البلاغات القانونية"
+    brand_name_en: str = "TG Legal Platform"
+    copyright_owner_ar: str = "مرتضى أبو زينب"
+    copyright_owner_en: str = "Murtada Abu Zainab"
+
     database_url: str = "postgresql+asyncpg://tglegal:tglegal@localhost:5432/tglegal"
     redis_url: str | None = None
 

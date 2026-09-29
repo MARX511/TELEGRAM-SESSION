@@ -1,14 +1,79 @@
-{% macro stat(label, value, color='slate') %}
-<div class="rounded-lg bg-white shadow p-4"><div class="text-xs uppercase text-slate-500">{{ label }}</div><div class="text-2xl font-semibold text-{{ color }}-700">{{ value }}</div></div>
-{% endmacro %}
-{% macro pager(page, pages, base) %}
-{% if pages > 1 %}<div class="mt-3 text-sm space-x-2">
-{% if page > 1 %}<a class="underline" href="{{ base }}&page={{ page-1 }}">‹ prev</a>{% endif %}
-<span>page {{ page }} / {{ pages }}</span>
-{% if page < pages %}<a class="underline" href="{{ base }}&page={{ page+1 }}">next ›</a>{% endif %}
-</div>{% endif %}
-{% endmacro %}
-{% macro badge(text) %}
-{% set c = {'VALID':'green','ACTIVE':'green','Healthy':'green','COMPLETED':'green','Completed':'green','BANNED':'red','INVALID':'red','EXPIRED':'red','Critical':'red','FAILED':'red','Failed':'red','CHECK_FAILED':'amber','Warning':'amber','WAITING':'amber','RETRYING':'amber','UNAVAILABLE':'slate','Unavailable':'slate','UNCHECKED':'slate','PENDING':'blue','RUNNING':'blue','Draft':'slate','Pending Review':'amber','Approved':'blue','Ready':'blue','Submitted':'indigo','Awaiting Response':'indigo','Closed':'slate','CANCELLED':'slate','UP':'green','DOWN':'red'}.get(text, 'slate') %}
-<span class="inline-block rounded px-2 py-0.5 text-xs bg-{{ c }}-100 text-{{ c }}-800">{{ text }}</span>
-{% endmacro %}
+{% from "partials/icons.html" import icon %}
+{# Import with context: {% from "partials/macros.html" import stat, badge ... with context %} (needs _, L, TONES). #}
+
+{% macro stat(label, value, tone='neutral', ic='activity', i=0, hint=None, kpi=False) -%}
+<div class="card stat tilt reveal tone-{{ tone }}{% if kpi %} kpi{% endif %}" style="--i:{{ i }}" data-tilt>
+  <div class="stat-icon depth">{{ icon(ic) }}</div>
+  <div class="stat-label">{{ label }}</div>
+  <div class="stat-value" data-count="{{ value if value is number else '' }}">{{ value }}</div>
+  {% if hint %}<div class="stat-hint">{{ hint }}</div>{% elif kpi %}<div class="stat-hint" aria-hidden="true"></div>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro badge(value) -%}
+<span class="badge tone-{{ TONES.get(value, 'neutral') }}">{{ L(value) }}</span>
+{%- endmacro %}
+
+{% macro pager(page, pages, base) -%}
+{% if pages > 1 %}
+<nav class="pager" aria-label="{{ _('Pagination') }}">
+  {% if page > 1 %}<a class="btn btn-ghost btn-sm" href="{{ base }}&page={{ page - 1 }}">{{ icon('chevron-left', 'icon flip-rtl') }}{{ _('Previous') }}</a>{% endif %}
+  <span>{{ _('Page {page} of {pages}').format(page=page, pages=pages) }}</span>
+  {% if page < pages %}<a class="btn btn-ghost btn-sm" href="{{ base }}&page={{ page + 1 }}">{{ _('Next') }}{{ icon('chevron-right', 'icon flip-rtl') }}</a>{% endif %}
+</nav>
+{% endif %}
+{%- endmacro %}
+
+{% macro page_header(title, subtitle=None, ic=None) -%}
+<div class="page-head reveal">
+  <div class="page-head-main">
+    {% if ic %}<div class="page-icon">{{ icon(ic) }}</div>{% endif %}
+    <div class="min-w-0"><h1 class="page-title">{{ title }}</h1>{% if subtitle %}<p class="page-sub">{{ subtitle }}</p>{% endif %}</div>
+  </div>
+  {% if caller %}<div class="page-actions">{{ caller() }}</div>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro empty(text, ic='inbox') -%}
+<div class="empty">{{ icon(ic, 'icon empty-icon') }}<p>{{ text }}</p></div>
+{%- endmacro %}
+
+{% macro section(title, ic='layers') -%}
+<div class="section-head"><h2>{{ icon(ic) }}{{ title }}</h2>{% if caller %}<div class="flex gap-2">{{ caller() }}</div>{% endif %}</div>
+{%- endmacro %}
+
+{% macro hbars(rows, label_fn=None, empty_text='') -%}
+{% if rows and rows|sum(attribute='value') > 0 %}
+<div class="hbars">
+  {% for r in rows %}
+  <div class="hbar" data-tip="{{ label_fn(r.key) if label_fn else r.key }}: {{ r.value }}">
+    <span class="hbar-label">{{ label_fn(r.key) if label_fn else r.key }}</span>
+    <span class="hbar-track"><span class="hbar-fill block" style="width:{{ r.pct }}%;--i:{{ loop.index0 }}"></span></span>
+    <span class="hbar-value">{{ r.value }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% else %}{{ empty(empty_text, 'chart-column') }}{% endif %}
+{%- endmacro %}
+
+{% macro donut_chart(d, caption, label_fn) -%}
+<div class="donut-wrap">
+  <svg class="donut" viewBox="0 0 140 140" role="img" aria-label="{{ caption }}: {{ d.total }}">
+    <circle class="donut-track" cx="70" cy="70" r="{{ d.radius }}" stroke-width="14"></circle>
+    <g transform="rotate(-90 70 70)">
+      {% for s in d.segments %}
+      <circle class="donut-seg" cx="70" cy="70" r="{{ d.radius }}" stroke-width="14" tabindex="0"
+              style="stroke:{{ s.colour }}" stroke-dasharray="{{ s.dash }} {{ s.rest }}" stroke-dashoffset="{{ s.offset }}"
+              data-tip="{{ label_fn(s.key) }}: {{ s.value }} ({{ s.pct }}%)"><title>{{ label_fn(s.key) }}: {{ s.value }}</title></circle>
+      {% endfor %}
+    </g>
+    <text class="donut-total" x="70" y="72" text-anchor="middle">{{ d.total }}</text>
+    <text class="donut-cap" x="70" y="90" text-anchor="middle">{{ caption }}</text>
+  </svg>
+  <div class="legend">
+    {% for l in d.legend %}
+    <div class="legend-row"><span class="legend-swatch" style="background:{{ l.colour }}"></span><span>{{ label_fn(l.key) }}</span><span class="num">{{ l.value }}</span><span class="pct">{{ l.pct }}%</span></div>
+    {% endfor %}
+  </div>
+</div>
+{%- endmacro %}

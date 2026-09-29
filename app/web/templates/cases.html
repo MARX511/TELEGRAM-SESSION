@@ -1,19 +1,60 @@
-{% extends "base.html" %}{% from "partials/macros.html" import stat, badge, pager %}{% block title %}Cases{% endblock %}{% block content %}
-<h1 class="text-2xl font-semibold mb-4">Cases</h1>
-<div class="grid grid-cols-3 lg:grid-cols-9 gap-3 mb-4">{% for s in statuses %}{{ stat(s, stats[s]) }}{% endfor %}</div>
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% from "partials/macros.html" import stat, badge, pager, page_header, empty with context %}
+{% block title %}{{ _('Cases') }}{% endblock %}
+{% block content %}
+{{ page_header(_('Cases'), _('Every case moves Draft → Review → Approval → Official submission → Response → Closed.'), 'briefcase') }}
+<div class="grid grid-cols-3 sm:grid-cols-5 xl:grid-cols-9 gap-3 mb-5">
+  {% set tones = {'Draft':'neutral','Pending Review':'warn','Approved':'info','Ready':'info','Submitted':'accent3','Awaiting Response':'accent3','Completed':'ok','Failed':'bad','Closed':'neutral'} %}
+  {% set icons_ = {'Draft':'file-text','Pending Review':'eye','Approved':'badge-check','Ready':'check','Submitted':'send','Awaiting Response':'hourglass','Completed':'circle-check','Failed':'octagon-x','Closed':'archive'} %}
+  {% for s in statuses %}{{ stat(L(s), stats[s], tones.get(s, 'neutral'), icons_.get(s, 'circle-dot'), loop.index0) }}{% endfor %}
+</div>
 {% if has_permission(user, rbac.P_CASES_WRITE) %}
-<form method="post" action="/cases" class="grid md:grid-cols-6 gap-2 mb-4 text-sm bg-white shadow rounded-lg p-3">
-<select name="target_id" required class="border rounded px-2 py-1 md:col-span-2"><option value="">— target —</option>{% for t in targets %}<option value="{{ t.id }}">{{ t.target_type }}: {{ t.username or t.url or t.telegram_id }} {{ t.title or '' }}</option>{% endfor %}</select>
-<input name="title" placeholder="case title" required class="border rounded px-2 py-1 md:col-span-2">
-<select name="reason_code" class="border rounded px-2 py-1"><option value="">— reason —</option>{% for r in reasons %}<option value="{{ r.code }}">{{ r.name }}</option>{% endfor %}</select>
-<select name="priority" class="border rounded px-2 py-1">{% for p in ['LOW','NORMAL','HIGH','CRITICAL'] %}<option {% if p == 'NORMAL' %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
-<textarea name="explanation" placeholder="explanation" class="border rounded px-2 py-1 md:col-span-3"></textarea>
-<textarea name="legal_basis" placeholder="legal basis" class="border rounded px-2 py-1 md:col-span-2"></textarea>
-<button class="bg-slate-900 text-white rounded px-3">Create case</button></form>{% endif %}
-<form method="get" class="flex gap-2 mb-3 text-sm"><input name="search" value="{{ filters.search or '' }}" placeholder="case number / title / reference" class="border rounded px-2 py-1 w-72">
-<select name="status" class="border rounded px-2 py-1"><option value="">any status</option>{% for s in statuses %}<option {% if filters.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select><button class="border rounded px-3">Filter</button></form>
-<table class="w-full text-sm bg-white shadow rounded-lg"><thead class="bg-slate-100 text-left"><tr><th class="px-3 py-2">Number</th><th class="px-3 py-2">Title</th><th class="px-3 py-2">Target</th><th class="px-3 py-2">Reason</th><th class="px-3 py-2">Priority</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Operator</th><th class="px-3 py-2">Updated</th></tr></thead>
-<tbody>{% for c in rows %}<tr class="border-t"><td class="px-3 py-2"><a class="underline" href="/cases/{{ c.id }}">{{ c.case_number }}</a></td><td class="px-3 py-2">{{ c.title }}</td><td class="px-3 py-2 text-xs">{{ c.target.target_type }}: {{ c.target.username or c.target.url or c.target.telegram_id }}</td><td class="px-3 py-2 text-xs">{{ c.reason.code if c.reason else '—' }}</td><td class="px-3 py-2">{{ c.priority }}</td><td class="px-3 py-2">{{ badge(c.status) }}</td><td class="px-3 py-2">{{ c.assigned_operator or '' }}</td><td class="px-3 py-2 text-xs">{{ c.updated_at.strftime('%Y-%m-%d %H:%M') }}</td></tr>
-{% else %}<tr><td colspan="8" class="px-3 py-6 text-center text-slate-400">No cases.</td></tr>{% endfor %}</tbody></table>
+<form method="post" action="/cases" id="new" class="card reveal mb-4">
+  <div class="card-title">{{ icon('plus') }}{{ _('New case') }}</div>
+  <div class="grid grid-cols-1 md:grid-cols-6 gap-3">
+    <div class="md:col-span-2"><label class="field-label" for="c-target">{{ _('Target') }}</label>
+      <select id="c-target" name="target_id" required class="select"><option value="">— {{ _('Choose a target') }} —</option>{% for t in targets %}<option value="{{ t.id }}">{{ L(t.target_type) }}: {{ ('@' ~ t.username) if t.username else (t.url or t.telegram_id) }} {{ t.title or '' }}</option>{% endfor %}</select></div>
+    <div class="md:col-span-2"><label class="field-label" for="c-title">{{ _('Title') }}</label><input id="c-title" name="title" required class="input"></div>
+    <div><label class="field-label" for="c-reason">{{ _('Reason') }}</label>
+      <select id="c-reason" name="reason_code" class="select"><option value="">— {{ _('Reason') }} —</option>{% for r in reasons %}<option value="{{ r.code }}">{{ R(r) }}</option>{% endfor %}</select></div>
+    <div><label class="field-label" for="c-prio">{{ _('Priority') }}</label>
+      <select id="c-prio" name="priority" class="select">{% for p in ['LOW','NORMAL','HIGH','CRITICAL'] %}<option value="{{ p }}" {% if p == 'NORMAL' %}selected{% endif %}>{{ L(p) }}</option>{% endfor %}</select></div>
+    <div class="md:col-span-3"><label class="field-label" for="c-exp">{{ _('Explanation') }}</label><textarea id="c-exp" name="explanation" class="textarea" dir="auto"></textarea></div>
+    <div class="md:col-span-2"><label class="field-label" for="c-legal">{{ _('Legal basis') }}</label><textarea id="c-legal" name="legal_basis" class="textarea" dir="auto"></textarea></div>
+    <div class="flex items-end"><button class="btn btn-primary w-full">{{ icon('plus') }}{{ _('Create case') }}</button></div>
+  </div>
+</form>
+{% endif %}
+<form method="get" class="card reveal flex flex-wrap items-end gap-3 mb-4">
+  <div class="flex-1 min-w-[14rem]"><label class="field-label" for="c-q">{{ _('Search') }}</label>
+    <div class="input-icon">{{ icon('search') }}<input id="c-q" name="search" value="{{ filters.search or '' }}" placeholder="{{ _('Case number, title or reference') }}" class="input"></div></div>
+  <div><label class="field-label" for="c-fs">{{ _('Status') }}</label>
+    <select id="c-fs" name="status" class="select"><option value="">{{ _('Any status') }}</option>{% for s in statuses %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ L(s) }}</option>{% endfor %}</select></div>
+  <button class="btn btn-ghost">{{ icon('filter') }}{{ _('Filter') }}</button>
+</form>
+<div class="card card-flush reveal">
+<div class="table-wrap">
+<table class="table">
+  <thead><tr><th>{{ _('Number') }}</th><th>{{ _('Title') }}</th><th>{{ _('Target') }}</th><th>{{ _('Reason') }}</th><th>{{ _('Priority') }}</th><th>{{ _('Status') }}</th><th>{{ _('Operator') }}</th><th>{{ _('Updated') }}</th></tr></thead>
+  <tbody>
+  {% for c in rows %}
+  <tr>
+    <td><a class="link ltr mono" href="/cases/{{ c.id }}">{{ c.case_number }}</a></td>
+    <td class="cell-strong">{{ c.title }}</td>
+    <td class="text-xs">{{ L(c.target.target_type) }}: <span class="ltr">{{ ('@' ~ c.target.username) if c.target.username else (c.target.url or c.target.telegram_id) }}</span></td>
+    <td class="text-xs">{{ R(c.reason) if c.reason else '—' }}</td>
+    <td>{{ badge(c.priority) }}</td>
+    <td>{{ badge(c.status) }}</td>
+    <td>{{ c.assigned_operator or '—' }}</td>
+    <td class="text-xs muted"><span class="ltr">{{ c.updated_at.strftime('%Y-%m-%d %H:%M') }}</span></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="8">{{ empty(_('No cases yet.'), 'briefcase') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+</div>
 {{ pager(page, pages, '/cases?search=' ~ (filters.search or '') ~ '&status=' ~ (filters.status or '')) }}
 {% endblock %}

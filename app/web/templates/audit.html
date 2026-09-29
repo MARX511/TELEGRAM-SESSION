@@ -1,8 +1,39 @@
-{% extends "base.html" %}{% from "partials/macros.html" import pager %}{% block title %}Audit{% endblock %}{% block content %}
-<h1 class="text-2xl font-semibold mb-4">Audit log</h1>
-<form method="get" class="flex gap-2 mb-3 text-sm"><select name="action" class="border rounded px-2 py-1"><option value="">any action</option>{% for a in actions %}<option {% if filters.action == a %}selected{% endif %}>{{ a }}</option>{% endfor %}</select><input name="actor" value="{{ filters.actor or '' }}" placeholder="actor" class="border rounded px-2 py-1"><input name="case_id" value="{{ filters.case_id or '' }}" placeholder="case id" class="border rounded px-2 py-1"><button class="border rounded px-3">Search</button></form>
-<table class="w-full text-sm bg-white shadow rounded-lg"><thead class="bg-slate-100 text-left"><tr><th class="px-3 py-2">When</th><th class="px-3 py-2">Action</th><th class="px-3 py-2">Actor</th><th class="px-3 py-2">Entity</th><th class="px-3 py-2">Session</th><th class="px-3 py-2">Case</th><th class="px-3 py-2">Provider</th><th class="px-3 py-2">Result</th><th class="px-3 py-2">Reason / details</th></tr></thead>
-<tbody>{% for r in rows %}<tr class="border-t"><td class="px-3 py-2 text-xs">{{ r.at.strftime('%Y-%m-%d %H:%M:%S') }}</td><td class="px-3 py-2">{{ r.action }}</td><td class="px-3 py-2">{{ r.actor or '' }}</td><td class="px-3 py-2 text-xs">{{ r.entity_type or '' }}:{{ (r.entity_id or '')[:8] }}</td><td class="px-3 py-2 text-xs">{{ (r.session_id or '')[:8] }}</td><td class="px-3 py-2 text-xs">{{ (r.case_id or '')[:8] }}</td><td class="px-3 py-2">{{ r.provider or '' }}</td><td class="px-3 py-2">{{ r.result or '' }}</td><td class="px-3 py-2 text-xs">{{ (r.reason or '')[:60] }} {{ (r.details_json or '')[:80] }}</td></tr>
-{% else %}<tr><td colspan="9" class="px-3 py-6 text-center text-slate-400">No audit entries.</td></tr>{% endfor %}</tbody></table>
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% from "partials/macros.html" import pager, page_header, empty with context %}
+{% block title %}{{ _('Audit') }}{% endblock %}
+{% block content %}
+{{ page_header(_('Audit log'), _('Who did what, when, on which session or case, and with what result.'), 'scroll-text') }}
+<form method="get" class="card reveal flex flex-wrap items-end gap-3 mb-4">
+  <div><label class="field-label" for="a-act">{{ _('Action') }}</label>
+    <select id="a-act" name="action" class="select"><option value="">{{ _('Any action') }}</option>{% for a in actions %}<option value="{{ a }}" {% if filters.action == a %}selected{% endif %}>{{ L(a) }}</option>{% endfor %}</select></div>
+  <div><label class="field-label" for="a-actor">{{ _('Actor') }}</label><input id="a-actor" name="actor" value="{{ filters.actor or '' }}" class="input" dir="ltr"></div>
+  <div><label class="field-label" for="a-case">{{ _('Case ID') }}</label><input id="a-case" name="case_id" value="{{ filters.case_id or '' }}" class="input" dir="ltr"></div>
+  <button class="btn btn-ghost">{{ icon('search') }}{{ _('Search') }}</button>
+</form>
+<div class="card card-flush reveal">
+<div class="table-wrap">
+<table class="table">
+  <thead><tr><th>{{ _('When') }}</th><th>{{ _('Action') }}</th><th>{{ _('Actor') }}</th><th>{{ _('Entity') }}</th><th>{{ _('Session') }}</th><th>{{ _('Case') }}</th><th>{{ _('Provider') }}</th><th>{{ _('Result') }}</th><th>{{ _('Details') }}</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td class="text-xs muted"><span class="ltr">{{ r.at.strftime('%Y-%m-%d %H:%M:%S') }}</span></td>
+    <td class="cell-strong">{{ L(r.action) }}</td>
+    <td>{{ r.actor or '—' }}</td>
+    <td class="text-xs"><span class="ltr mono">{{ r.entity_type or '' }}:{{ (r.entity_id or '')[:8] }}</span></td>
+    <td><span class="ltr mono text-xs">{{ (r.session_id or '')[:8] }}</span></td>
+    <td><span class="ltr mono text-xs">{{ (r.case_id or '')[:8] }}</span></td>
+    <td>{{ r.provider or '' }}</td>
+    <td>{{ L(r.result) if r.result else '' }}</td>
+    <td class="text-xs muted" style="max-width:22rem">{{ (r.reason or '')[:60] }} <span class="ltr mono">{{ (r.details_json or '')[:80] }}</span></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="9">{{ empty(_('No audit entries.'), 'scroll-text') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+</div>
 {{ pager(page, pages, '/audit?action=' ~ (filters.action or '') ~ '&actor=' ~ (filters.actor or '') ~ '&case_id=' ~ (filters.case_id or '')) }}
 {% endblock %}

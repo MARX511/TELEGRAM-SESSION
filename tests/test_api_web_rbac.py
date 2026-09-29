@@ -86,8 +86,13 @@ async def test_web_dashboard_pages(client, make_session_file):
     tid = (await client.get("/api/v1/targets")).json()["items"][0]["id"]
     r = await client.post("/cases", data={"target_id": tid, "title": "Web case", "reason_code": "illegal_content"})
     assert r.status_code == 303 and "/cases/" in r.headers["location"]
-    detail = await client.get(r.headers["location"])
+    case_url = r.headers["location"]
+    detail = await client.get(case_url)  # Arabic is the default UI language
+    assert detail.status_code == 200 and "Web case" in detail.text and "توليد المسودة" in detail.text
+    client.cookies.set("lang", "en")
+    detail = await client.get(case_url)
     assert detail.status_code == 200 and "Web case" in detail.text and "Generate draft" in detail.text
+    client.cookies.delete("lang")
     r = await client.get("/sessions", headers={"HX-Request": "true"})
     assert r.status_code == 200 and "<table" in r.text and "<html" not in r.text
 

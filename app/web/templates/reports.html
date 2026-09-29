@@ -1,18 +1,66 @@
-{% extends "base.html" %}{% from "partials/macros.html" import stat %}{% block title %}Reports{% endblock %}{% block content %}
-<h1 class="text-2xl font-semibold mb-4">Reports &amp; analytics (§26)</h1>
-<div class="grid md:grid-cols-4 gap-3 mb-6">
-{{ stat('Avg processing (h)', data.average_processing_hours if data.average_processing_hours is not none else '—') }}
-{{ stat('Avg response (h)', data.submission_response_hours if data.submission_response_hours is not none else '—') }}
-{{ stat('Session availability', (data.session_availability.average_availability*100)|round(1) ~ '%') }}
-{{ stat('Submissions OK / failed', data.success_failure.completed ~ ' / ' ~ data.success_failure.failed) }}
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% from "partials/macros.html" import stat, page_header, hbars, empty with context %}
+{% block title %}{{ _('Reports') }}{% endblock %}
+{% block content %}
+{{ page_header(_('Reports and analytics'), _('Read-only insight into processing time, outcomes and failure causes.'), 'chart-column') }}
+<div class="grid grid-cols-1 xs:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
+  {{ stat(_('Average processing (hours)'), data.average_processing_hours if data.average_processing_hours is not none else '—', 'accent2', 'clock', 0, kpi=True) }}
+  {{ stat(_('Average response (hours)'), data.submission_response_hours if data.submission_response_hours is not none else '—', 'accent3', 'hourglass', 1, kpi=True) }}
+  {{ stat(_('Session availability'), ((data.session_availability.average_availability * 100)|round(1)) ~ '%', 'ok', 'gauge', 2, kpi=True) }}
+  {{ stat(_('Submissions completed / failed'), data.success_failure.completed ~ ' / ' ~ data.success_failure.failed, 'accent', 'send', 3, kpi=True) }}
 </div>
-<div class="grid md:grid-cols-3 gap-4 mb-6">
-<div class="bg-white shadow rounded-lg p-4"><h3 class="font-semibold mb-2">Reports by day (30d)</h3><ul class="text-sm">{% for r in data.reports_by_day %}<li class="flex justify-between"><span>{{ r.day }}</span><span>{{ r.count }}</span></li>{% else %}<li class="text-slate-400">none</li>{% endfor %}</ul></div>
-<div class="bg-white shadow rounded-lg p-4"><h3 class="font-semibold mb-2">Reports by reason</h3><ul class="text-sm">{% for r in data.reports_by_reason %}<li class="flex justify-between"><span>{{ r.reason }}</span><span>{{ r.count }}</span></li>{% else %}<li class="text-slate-400">none</li>{% endfor %}</ul></div>
-<div class="bg-white shadow rounded-lg p-4"><h3 class="font-semibold mb-2">Failure causes (30d)</h3><ul class="text-sm">{% for r in data.failure_causes %}<li class="flex justify-between"><span>{{ r.category }}</span><span>{{ r.count }}</span></li>{% else %}<li class="text-slate-400">none</li>{% endfor %}</ul></div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+  <div class="card reveal xl:col-span-3">
+    <div class="card-title">{{ icon('trending-up') }}{{ _('Submissions per day (last 30 days)') }}</div>
+    {% set day_total = day_cols|sum(attribute='value') %}
+    {% if day_total > 0 %}
+    {% set day_max = day_cols|map(attribute='value')|max %}
+    <div class="cols" role="img" aria-label="{{ _('Submissions per day (last 30 days)') }}: {{ day_total }}">
+      {% for c in day_cols %}<div class="col{% if not c.value %} zero{% endif %}" data-tip="{{ c.key }}: {{ c.value }}" tabindex="0">
+        {% if c.value and c.value == day_max %}<span class="col-label">{{ c.value }}</span>{% endif %}
+        <div class="col-bar" style="height:{{ [c.pct, 3]|max }}%;--i:{{ loop.index0 }}"></div></div>{% endfor %}
+    </div>
+    <div class="axis"><span class="ltr">{{ day_cols[0].key }}</span><span class="ltr">{{ day_cols[day_cols|length // 2].key }}</span><span class="ltr">{{ day_cols[-1].key }}</span></div>
+    {% else %}{{ empty(_('No submissions in the last 30 days.'), 'trending-up') }}{% endif %}
+  </div>
+  <div class="card reveal">
+    <div class="card-title">{{ icon('scale') }}{{ _('By reason') }}</div>
+    {{ hbars(reason_bars, RC, _('No submissions yet.')) }}
+  </div>
+  <div class="card reveal">
+    <div class="card-title">{{ icon('triangle-alert') }}{{ _('Failure causes (30 days)') }}</div>
+    {{ hbars(cause_bars, L, _('No failures recorded.')) }}
+  </div>
+  <div class="card reveal">
+    <div class="card-title">{{ icon('list-checks') }}{{ _('Submission outcomes') }}</div>
+    {{ hbars(outcome_bars, L, _('No submissions yet.')) }}
+  </div>
 </div>
-<div class="bg-white shadow rounded-lg p-4 mb-4"><h3 class="font-semibold mb-2">Export (§19)</h3>
-{% if has_permission(user, rbac.P_REPORTS_EXPORT) %}<form method="post" action="/reports/export" class="flex gap-2 text-sm"><select name="export_type" class="border rounded px-2 py-1">{% for t in types %}<option>{{ t }}</option>{% endfor %}</select><select name="fmt" class="border rounded px-2 py-1"><option>json</option><option>csv</option></select><button class="bg-slate-900 text-white rounded px-3">Export</button></form>{% endif %}
-<table class="w-full text-xs mt-3"><thead class="text-left text-slate-500"><tr><th>When</th><th>Type</th><th>Format</th><th>File</th><th>SHA-256</th><th>By</th><th></th></tr></thead><tbody>
-{% for e in exports %}<tr class="border-t"><td class="py-1">{{ e.created_at.strftime('%Y-%m-%d %H:%M') }}</td><td>{{ e.export_type }}</td><td>{{ e.fmt }}</td><td>{{ e.file_path.split('/')[-1] }}</td><td class="font-mono">{{ (e.sha256 or '')[:16] }}…</td><td>{{ e.requested_by }}</td><td><a class="underline" href="/api/v1/exports/{{ e.id }}/download">download</a></td></tr>{% endfor %}</tbody></table></div>
+
+<div class="card reveal mt-4">
+  <div class="card-title">{{ icon('download') }}{{ _('Export') }}</div>
+  {% if has_permission(user, rbac.P_REPORTS_EXPORT) %}
+  <form method="post" action="/reports/export" class="flex flex-wrap items-end gap-3 mb-4">
+    <div><label class="field-label" for="x-type">{{ _('Dataset') }}</label><select id="x-type" name="export_type" class="select">{% for t in types %}<option value="{{ t }}">{{ L(t) }}</option>{% endfor %}</select></div>
+    <div><label class="field-label" for="x-fmt">{{ _('Format') }}</label><select id="x-fmt" name="fmt" class="select"><option value="json">JSON</option><option value="csv">CSV</option></select></div>
+    <button class="btn btn-primary">{{ icon('file-down') }}{{ _('Export') }}</button>
+  </form>
+  {% endif %}
+  {% if exports %}
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>{{ _('When') }}</th><th>{{ _('Dataset') }}</th><th>{{ _('Format') }}</th><th>{{ _('File') }}</th><th>SHA-256</th><th>{{ _('By') }}</th><th></th></tr></thead>
+    <tbody>{% for e in exports %}
+    <tr>
+      <td class="text-xs muted"><span class="ltr">{{ e.created_at.strftime('%Y-%m-%d %H:%M') }}</span></td>
+      <td>{{ L(e.export_type) }}</td><td class="uppercase text-xs">{{ e.fmt }}</td>
+      <td class="text-xs"><span class="ltr mono">{{ e.file_path.replace('\\', '/').split('/')[-1] }}</span></td>
+      <td><span class="ltr mono text-xs" data-tip="{{ e.sha256 }}">{{ (e.sha256 or '')[:14] }}…</span></td>
+      <td>{{ e.requested_by or '—' }}</td>
+      <td><a class="btn btn-ghost btn-xs" href="/api/v1/exports/{{ e.id }}/download">{{ icon('download') }}</a></td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}{{ empty(_('No exports yet.'), 'file-down') }}{% endif %}
+</div>
 {% endblock %}
