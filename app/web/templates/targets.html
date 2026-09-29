@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% from "partials/macros.html" import stat, badge, pager %}{% block title %}Targets{% endblock %}{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Targets</h1>
+<div class="grid grid-cols-4 lg:grid-cols-7 gap-3 mb-4">{{ stat('Total', stats.total) }}{{ stat('Accounts', stats.accounts) }}{{ stat('Channels', stats.channels) }}{{ stat('Groups', stats.groups) }}{{ stat('Messages', stats.messages) }}{{ stat('Open cases', stats.open_cases, 'blue') }}{{ stat('Closed cases', stats.closed_cases) }}</div>
+{% if has_permission(user, rbac.P_TARGETS_WRITE) %}
+<form method="post" action="/targets" class="grid md:grid-cols-7 gap-2 mb-4 text-sm bg-white shadow rounded-lg p-3">
+<select name="target_type" class="border rounded px-2 py-1">{% for t in types %}<option>{{ t }}</option>{% endfor %}</select>
+<input name="url" placeholder="https://t.me/…" class="border rounded px-2 py-1"><input name="username" placeholder="@username" class="border rounded px-2 py-1"><input name="telegram_id" placeholder="telegram id" class="border rounded px-2 py-1">
+<input name="title" placeholder="title" class="border rounded px-2 py-1"><input name="tags" placeholder="tags" class="border rounded px-2 py-1"><button class="bg-slate-900 text-white rounded px-3">Add target</button></form>{% endif %}
+<form method="get" class="flex gap-2 mb-3 text-sm"><input name="search" value="{{ filters.search or '' }}" placeholder="search url / username / id / title" class="border rounded px-2 py-1 w-72">
+<select name="target_type" class="border rounded px-2 py-1"><option value="">any type</option>{% for t in types %}<option {% if filters.target_type == t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select><button class="border rounded px-3">Search</button></form>
+<table class="w-full text-sm bg-white shadow rounded-lg"><thead class="bg-slate-100 text-left"><tr><th class="px-3 py-2">Type</th><th class="px-3 py-2">Username</th><th class="px-3 py-2">URL</th><th class="px-3 py-2">Title</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Tags</th><th class="px-3 py-2">Added</th></tr></thead>
+<tbody>{% for t in rows %}<tr class="border-t"><td class="px-3 py-2">{{ t.target_type }}</td><td class="px-3 py-2">{{ t.username or '' }}</td><td class="px-3 py-2 text-xs">{{ t.url or '' }}</td><td class="px-3 py-2">{{ t.title or '' }}</td><td class="px-3 py-2">{{ badge(t.status) }}</td><td class="px-3 py-2 text-xs">{{ t.tags or '' }}</td><td class="px-3 py-2 text-xs">{{ t.created_at.strftime('%Y-%m-%d') }} {{ t.created_by or '' }}</td></tr>
+{% else %}<tr><td colspan="7" class="px-3 py-6 text-center text-slate-400">No targets.</td></tr>{% endfor %}</tbody></table>
+{{ pager(page, pages, '/targets?search=' ~ (filters.search or '') ~ '&target_type=' ~ (filters.target_type or '')) }}
+{% endblock %}

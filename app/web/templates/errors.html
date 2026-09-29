@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block title %}Errors{% endblock %}{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Errors</h1>
+<div class="flex flex-wrap gap-2 mb-4 text-sm"><a class="border rounded px-2 py-1 {% if not category %}bg-slate-900 text-white{% endif %}" href="/errors">all</a>{% for c in causes %}<a class="border rounded px-2 py-1 {% if category == c.category %}bg-slate-900 text-white{% endif %}" href="/errors?category={{ c.category }}">{{ c.category }} ({{ c.count }})</a>{% endfor %}</div>
+<table class="w-full text-sm bg-white shadow rounded-lg"><thead class="bg-slate-100 text-left"><tr><th class="px-3 py-2">When</th><th class="px-3 py-2">Category</th><th class="px-3 py-2">Component</th><th class="px-3 py-2">Session</th><th class="px-3 py-2">Case</th><th class="px-3 py-2">Operator</th><th class="px-3 py-2">Provider</th><th class="px-3 py-2">Message</th></tr></thead>
+<tbody>{% for e in rows %}<tr class="border-t"><td class="px-3 py-2 text-xs">{{ e.occurred_at.strftime('%Y-%m-%d %H:%M:%S') }}</td><td class="px-3 py-2">{{ e.category }}</td><td class="px-3 py-2">{{ e.component or '' }}</td><td class="px-3 py-2 text-xs">{{ (e.session_id or '')[:8] }}</td><td class="px-3 py-2 text-xs">{{ (e.case_id or '')[:8] }}</td><td class="px-3 py-2">{{ e.operator or '' }}</td><td class="px-3 py-2">{{ e.provider or '' }}</td><td class="px-3 py-2 text-xs">{{ e.message[:120] }}</td></tr>
+{% else %}<tr><td colspan="8" class="px-3 py-6 text-center text-slate-400">No errors.</td></tr>{% endfor %}</tbody></table>
+{% endblock %}

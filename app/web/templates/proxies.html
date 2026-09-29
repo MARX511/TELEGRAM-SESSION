@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% from "partials/macros.html" import badge %}{% block title %}Proxies{% endblock %}{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Proxies <span class="text-sm font-normal text-slate-500">routing / network isolation only (§4)</span></h1>
+{% if has_permission(user, rbac.P_PROXIES_WRITE) %}
+<form method="post" action="/proxies" class="flex gap-2 mb-4 text-sm"><input name="name" placeholder="name" class="border rounded px-2 py-1"><input name="host" placeholder="host" required class="border rounded px-2 py-1"><input name="port" type="number" placeholder="port" required class="border rounded px-2 py-1 w-24">
+<select name="protocol" class="border rounded px-2 py-1">{% for p in ['socks5','socks4','http','mtproto'] %}<option>{{ p }}</option>{% endfor %}</select><button class="bg-slate-900 text-white rounded px-3">Add</button></form>{% endif %}
+<table class="w-full text-sm bg-white shadow rounded-lg"><thead class="bg-slate-100 text-left"><tr><th class="px-3 py-2">Name</th><th class="px-3 py-2">Endpoint</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Latency</th><th class="px-3 py-2">Last check</th><th class="px-3 py-2">Error</th><th></th></tr></thead>
+<tbody>{% for p in rows %}<tr class="border-t"><td class="px-3 py-2">{{ p.name or '' }}</td><td class="px-3 py-2 font-mono text-xs">{{ p.protocol }}://{{ p.host }}:{{ p.port }}</td><td class="px-3 py-2">{{ badge(p.status) }}</td><td class="px-3 py-2">{{ p.latency_ms or '' }}</td><td class="px-3 py-2 text-xs">{{ p.last_check or '' }}</td><td class="px-3 py-2 text-xs text-red-700">{{ (p.last_error or '')[:40] }}</td>
+<td class="px-3 py-2">{% if has_permission(user, rbac.P_PROXIES_WRITE) %}<form method="post" action="/proxies/{{ p.id }}/check"><button class="underline">check</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="7" class="px-3 py-6 text-center text-slate-400">No proxies.</td></tr>{% endfor %}</tbody></table>
+{% endblock %}

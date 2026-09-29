@@ -1,0 +1,14 @@
+{% macro stat(label, value, color='slate') %}
+<div class="rounded-lg bg-white shadow p-4"><div class="text-xs uppercase text-slate-500">{{ label }}</div><div class="text-2xl font-semibold text-{{ color }}-700">{{ value }}</div></div>
+{% endmacro %}
+{% macro pager(page, pages, base) %}
+{% if pages > 1 %}<div class="mt-3 text-sm space-x-2">
+{% if page > 1 %}<a class="underline" href="{{ base }}&page={{ page-1 }}">‹ prev</a>{% endif %}
+<span>page {{ page }} / {{ pages }}</span>
+{% if page < pages %}<a class="underline" href="{{ base }}&page={{ page+1 }}">next ›</a>{% endif %}
+</div>{% endif %}
+{% endmacro %}
+{% macro badge(text) %}
+{% set c = {'VALID':'green','ACTIVE':'green','Healthy':'green','COMPLETED':'green','Completed':'green','BANNED':'red','INVALID':'red','EXPIRED':'red','Critical':'red','FAILED':'red','Failed':'red','CHECK_FAILED':'amber','Warning':'amber','WAITING':'amber','RETRYING':'amber','UNAVAILABLE':'slate','Unavailable':'slate','UNCHECKED':'slate','PENDING':'blue','RUNNING':'blue','Draft':'slate','Pending Review':'amber','Approved':'blue','Ready':'blue','Submitted':'indigo','Awaiting Response':'indigo','Closed':'slate','CANCELLED':'slate','UP':'green','DOWN':'red'}.get(text, 'slate') %}
+<span class="inline-block rounded px-2 py-0.5 text-xs bg-{{ c }}-100 text-{{ c }}-800">{{ text }}</span>
+{% endmacro %}

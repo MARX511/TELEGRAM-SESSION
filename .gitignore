@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+*.db
+*.sqlite
+# Sensitive session material never enters git
+sessions/**/*.session
+sessions/**/*.session-journal
+sessions/**/*.enc
+evidence_store/
+backups/
+exports/
+*.log
+.mypy_cache/
+dist/
+build/
+*.egg-info/

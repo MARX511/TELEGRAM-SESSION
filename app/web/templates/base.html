@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Dashboard{% endblock %} · TG Legal Platform</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body class="bg-slate-50 text-slate-800">
+<div class="flex min-h-screen">
+{% if user %}
+<aside class="w-56 bg-slate-900 text-slate-200 p-4 space-y-1 text-sm">
+  <div class="font-bold text-white mb-4">TG Legal Platform</div>
+  {% for href, label in [('/','Dashboard'),('/sessions','Sessions'),('/accounts','Accounts'),('/proxies','Proxies'),('/targets','Targets'),('/cases','Cases'),('/submissions','Submissions'),('/errors','Errors'),('/audit','Audit'),('/reports','Reports'),('/settings','Settings')] %}
+  <a href="{{ href }}" class="block px-3 py-2 rounded hover:bg-slate-700 {% if request.url.path == href %}bg-slate-700 text-white{% endif %}">{{ label }}</a>
+  {% endfor %}
+  <div class="pt-6 text-xs text-slate-400">{{ user.username }} · {{ user.role }}<br><a href="/logout" class="underline">logout</a></div>
+</aside>
+{% endif %}
+<main class="flex-1 p-6">
+  {% if flash %}<div class="mb-4 rounded border border-amber-300 bg-amber-50 px-4 py-2 text-sm">{{ flash }}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+</div>
+</body></html>

@@ -1,0 +1,59 @@
+{% extends "base.html" %}{% from "partials/macros.html" import badge %}{% block title %}{{ case.case_number }}{% endblock %}{% block content %}
+<div class="flex items-start justify-between mb-4"><div><h1 class="text-2xl font-semibold">{{ case.case_number }} · {{ case.title }}</h1>
+<div class="text-sm text-slate-600 mt-1">{{ badge(case.status) }} priority {{ case.priority }} · target <b>{{ case.target.target_type }}</b> {{ case.target.url or ('@' ~ case.target.username if case.target.username else case.target.telegram_id) }} · reason <b>{{ case.reason.name if case.reason else '—' }}</b> · ref {{ case.reference_number or '—' }}</div></div>
+<div class="text-xs text-slate-500">created {{ case.created_at.strftime('%Y-%m-%d %H:%M') }} by {{ case.created_by }}{% if case.approved_by %} · approved by {{ case.approved_by }}{% endif %}</div></div>
+<div class="grid lg:grid-cols-3 gap-4">
+<div class="lg:col-span-2 space-y-4">
+ <div class="bg-white shadow rounded-lg p-4"><h2 class="font-semibold mb-2">Workflow</h2>
+ <div class="flex flex-wrap gap-2 text-sm">
+ {% if has_permission(user, rbac.P_CASES_WRITE) %}
+ <form method="post" action="/cases/{{ case.id }}/action/reason" class="flex gap-1"><select name="reason_code" class="border rounded px-2 py-1">{% for r in reasons %}<option value="{{ r.code }}" {% if case.reason and case.reason.code == r.code %}selected{% endif %}>{{ r.name }}</option>{% endfor %}</select><button class="border rounded px-2">Set reason</button></form>
+ <form method="post" action="/cases/{{ case.id }}/action/draft"><button class="border rounded px-2 py-1">Generate draft</button></form>
+ {% for s in allowed %}{% if s != 'Approved' or has_permission(user, rbac.P_CASES_APPROVE) %}<form method="post" action="/cases/{{ case.id }}/action/transition"><input type="hidden" name="to_status" value="{{ s }}"><button class="rounded px-2 py-1 {% if s == 'Approved' %}bg-blue-700 text-white{% elif s == 'Closed' %}bg-slate-300{% else %}border{% endif %}">→ {{ s }}</button></form>{% endif %}{% endfor %}
+ {% endif %}
+ <form method="post" action="/cases/{{ case.id }}/action/pdf"><button class="border rounded px-2 py-1">Export PDF</button></form>
+ <form method="post" action="/cases/{{ case.id }}/action/evidence-zip"><button class="border rounded px-2 py-1">Evidence ZIP</button></form>
+ </div>
+ <p class="text-xs text-slate-500 mt-2">Draft → Pending Review → Approved → Ready → Submitted → Awaiting Response → Completed → Closed (§25). Submissions go through official channels only (§13).</p></div>
+
+ <div class="bg-white shadow rounded-lg p-4"><h2 class="font-semibold mb-2">Report draft {% if case.status in ['Draft','Pending Review'] %}<span class="text-xs font-normal text-slate-500">(editable before approval)</span>{% else %}<span class="text-xs font-normal text-slate-500">(locked)</span>{% endif %}</h2>
+ {% if draft %}
+ <form method="post" action="/cases/{{ case.id }}/action/edit-draft" class="space-y-2 text-sm">
+ {% for k, label in [('subject','Subject'),('summary','Summary'),('reason','Reason'),('evidence_summary','Evidence summary'),('requested_review','Requested review'),('reference','Reference'),('additional_notes','Additional notes')] %}
+ <label class="block"><span class="text-xs uppercase text-slate-500">{{ label }}</span><textarea name="{{ k }}" rows="{{ 1 if k in ['subject','reference'] else 3 }}" class="w-full border rounded px-2 py-1 font-mono text-xs" {% if case.status not in ['Draft','Pending Review'] or not has_permission(user, rbac.P_CASES_WRITE) %}readonly{% endif %}>{{ draft[k] }}</textarea></label>{% endfor %}
+ {% if case.status in ['Draft','Pending Review'] and has_permission(user, rbac.P_CASES_WRITE) %}<button class="bg-slate-900 text-white rounded px-3 py-1">Save draft</button>{% endif %}</form>
+ {% else %}<p class="text-slate-400 text-sm">No draft yet. Set a reason and generate one.</p>{% endif %}</div>
+
+ <div class="bg-white shadow rounded-lg p-4"><h2 class="font-semibold mb-2">Evidence ({{ evidence|length }}) <form class="inline" method="post" action="/cases/{{ case.id }}/action/verify-evidence"><button class="underline text-xs">verify integrity</button></form></h2>
+ <table class="w-full text-xs"><thead class="text-left text-slate-500"><tr><th>Type</th><th>Title</th><th>SHA-256</th><th>Integrity</th><th>Custody</th><th></th></tr></thead><tbody>
+ {% for e in evidence %}<tr class="border-t"><td class="py-1">{{ e.evidence_type }}</td><td>{{ e.title }}{% if e.external_url %}<br><span class="text-slate-500">{{ e.external_url }}</span>{% endif %}</td><td class="font-mono">{{ (e.sha256 or '')[:16] }}…</td><td>{% if e.integrity_ok %}<span class="text-green-700">OK</span>{% elif e.integrity_ok is none %}?{% else %}<span class="text-red-700">FAILED</span>{% endif %}</td>
+ <td>{% for c in e.custody %}{{ c.action }}({{ c.actor }}) {% endfor %}</td><td>{% if e.storage_path %}<a class="underline" href="/api/v1/cases/{{ case.id }}/evidence/{{ e.id }}/download">download</a>{% endif %}</td></tr>{% else %}<tr><td colspan="6" class="py-2 text-slate-400">No evidence.</td></tr>{% endfor %}</tbody></table>
+ {% if has_permission(user, rbac.P_EVIDENCE_WRITE) and case.status != 'Closed' %}
+ <form method="post" action="/cases/{{ case.id }}/evidence" enctype="multipart/form-data" class="grid md:grid-cols-5 gap-2 mt-3 text-sm">
+ <select name="evidence_type" class="border rounded px-2 py-1">{% for t in evidence_types %}<option>{{ t }}</option>{% endfor %}</select><input name="title" placeholder="title" required class="border rounded px-2 py-1"><input name="value" placeholder="URL / reference / hash" class="border rounded px-2 py-1"><input type="file" name="file" class="text-xs"><button class="bg-slate-900 text-white rounded px-3">Add evidence</button></form>{% endif %}</div>
+
+ <div class="bg-white shadow rounded-lg p-4"><h2 class="font-semibold mb-2">Submissions ({{ submissions|length }})</h2>
+ {% for s in submissions %}<div class="border rounded p-2 mb-2 text-sm"><div>{{ badge(s.status) }} <b>{{ s.channel }}</b> → {{ s.recipient or '—' }} · ref {{ s.reference_number or '—' }} · by {{ s.operator }}</div>
+ <div class="text-xs text-slate-600">{{ s.result or '' }} {% if s.error_message %}<span class="text-red-700">{{ s.error_message }}</span>{% endif %}</div>
+ <div class="text-xs">attempts: {% for a in s.attempts %}#{{ a.attempt_no }} {{ a.status }}; {% endfor %} responses: {% for r in s.responses %}{{ r.outcome }} ({{ r.received_at.strftime('%Y-%m-%d') }}); {% endfor %}</div>
+ <div class="flex flex-wrap gap-2 mt-1 text-xs">
+ {% if s.status in ['PENDING','RETRYING','FAILED'] and has_permission(user, rbac.P_SUBMISSIONS_EXECUTE) %}<form method="post" action="/submissions/{{ s.id }}/execute"><button class="border rounded px-2">Execute (approve &amp; run)</button></form>{% endif %}
+ {% if s.status == 'WAITING' and has_permission(user, rbac.P_SUBMISSIONS_EXECUTE) %}<form method="post" action="/submissions/{{ s.id }}/confirm" class="flex gap-1"><input name="reference_number" placeholder="reference #" class="border rounded px-1"><button class="border rounded px-2">Confirm sent</button></form>{% endif %}
+ {% if s.status in ['COMPLETED','WAITING'] and has_permission(user, rbac.P_SUBMISSIONS_WRITE) %}<form method="post" action="/submissions/{{ s.id }}/response" class="flex gap-1"><select name="outcome" class="border rounded"><option>accepted</option><option>rejected</option><option>info_requested</option><option>pending</option></select><input name="body" placeholder="response text" class="border rounded px-1"><button class="border rounded px-2">Record response</button></form>{% endif %}
+ {% if s.status in ['PENDING','WAITING','RETRYING'] and has_permission(user, rbac.P_SUBMISSIONS_WRITE) %}<form method="post" action="/submissions/{{ s.id }}/cancel"><button class="underline text-red-700">cancel</button></form>{% endif %}
+ </div></div>{% else %}<p class="text-slate-400 text-sm">No submissions.</p>{% endfor %}
+ {% if case.status == 'Ready' and has_permission(user, rbac.P_SUBMISSIONS_WRITE) %}
+ <form method="post" action="/cases/{{ case.id }}/submissions" class="flex flex-wrap gap-2 mt-2 text-sm">
+ <select name="channel" class="border rounded px-2 py-1">{% for c in channels %}<option>{{ c }}</option>{% endfor %}</select>
+ <input name="recipient" list="recipients" placeholder="official recipient / portal" class="border rounded px-2 py-1 w-64"><datalist id="recipients">{% for k, v in emails.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}{% for k, v in portals.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</datalist>
+ <label class="text-xs"><input type="checkbox" name="execute" value="1"> execute now (explicit approval)</label><button class="bg-blue-700 text-white rounded px-3 py-1">Create submission</button></form>{% endif %}</div>
+</div>
+<div class="space-y-4">
+ <div class="bg-white shadow rounded-lg p-4 text-sm"><h2 class="font-semibold mb-2">Details</h2>
+ <div class="text-xs uppercase text-slate-500">Explanation</div><p class="mb-2 whitespace-pre-wrap">{{ case.explanation or '—' }}</p>
+ <div class="text-xs uppercase text-slate-500">Legal basis</div><p class="mb-2 whitespace-pre-wrap">{{ case.legal_basis or '—' }}</p>
+ <div class="text-xs uppercase text-slate-500">Assigned</div><p>{{ case.assigned_operator or '—' }}</p></div>
+ <div class="bg-white shadow rounded-lg p-4 text-xs"><h2 class="font-semibold mb-2 text-sm">History (§18)</h2>
+ <ul class="space-y-1">{% for h in history %}<li><span class="text-slate-500">{{ h.created_at.strftime('%m-%d %H:%M') }}</span> {{ h.event_type }}{% if h.to_status %} → {{ h.to_status }}{% endif %} <span class="text-slate-500">{{ h.actor or '' }}</span></li>{% endfor %}</ul></div>
+</div></div>
+{% endblock %}

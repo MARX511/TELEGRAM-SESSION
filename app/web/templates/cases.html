@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% from "partials/macros.html" import stat, badge, pager %}{% block title %}Cases{% endblock %}{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Cases</h1>
+<div class="grid grid-cols-3 lg:grid-cols-9 gap-3 mb-4">{% for s in statuses %}{{ stat(s, stats[s]) }}{% endfor %}</div>
+{% if has_permission(user, rbac.P_CASES_WRITE) %}
+<form method="post" action="/cases" class="grid md:grid-cols-6 gap-2 mb-4 text-sm bg-white shadow rounded-lg p-3">
+<select name="target_id" required class="border rounded px-2 py-1 md:col-span-2"><option value="">— target —</option>{% for t in targets %}<option value="{{ t.id }}">{{ t.target_type }}: {{ t.username or t.url or t.telegram_id }} {{ t.title or '' }}</option>{% endfor %}</select>
+<input name="title" placeholder="case title" required class="border rounded px-2 py-1 md:col-span-2">
+<select name="reason_code" class="border rounded px-2 py-1"><option value="">— reason —</option>{% for r in reasons %}<option value="{{ r.code }}">{{ r.name }}</option>{% endfor %}</select>
+<select name="priority" class="border rounded px-2 py-1">{% for p in ['LOW','NORMAL','HIGH','CRITICAL'] %}<option {% if p == 'NORMAL' %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+<textarea name="explanation" placeholder="explanation" class="border rounded px-2 py-1 md:col-span-3"></textarea>
+<textarea name="legal_basis" placeholder="legal basis" class="border rounded px-2 py-1 md:col-span-2"></textarea>
+<button class="bg-slate-900 text-white rounded px-3">Create case</button></form>{% endif %}
+<form method="get" class="flex gap-2 mb-3 text-sm"><input name="search" value="{{ filters.search or '' }}" placeholder="case number / title / reference" class="border rounded px-2 py-1 w-72">
+<select name="status" class="border rounded px-2 py-1"><option value="">any status</option>{% for s in statuses %}<option {% if filters.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select><button class="border rounded px-3">Filter</button></form>
+<table class="w-full text-sm bg-white shadow rounded-lg"><thead class="bg-slate-100 text-left"><tr><th class="px-3 py-2">Number</th><th class="px-3 py-2">Title</th><th class="px-3 py-2">Target</th><th class="px-3 py-2">Reason</th><th class="px-3 py-2">Priority</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Operator</th><th class="px-3 py-2">Updated</th></tr></thead>
+<tbody>{% for c in rows %}<tr class="border-t"><td class="px-3 py-2"><a class="underline" href="/cases/{{ c.id }}">{{ c.case_number }}</a></td><td class="px-3 py-2">{{ c.title }}</td><td class="px-3 py-2 text-xs">{{ c.target.target_type }}: {{ c.target.username or c.target.url or c.target.telegram_id }}</td><td class="px-3 py-2 text-xs">{{ c.reason.code if c.reason else '—' }}</td><td class="px-3 py-2">{{ c.priority }}</td><td class="px-3 py-2">{{ badge(c.status) }}</td><td class="px-3 py-2">{{ c.assigned_operator or '' }}</td><td class="px-3 py-2 text-xs">{{ c.updated_at.strftime('%Y-%m-%d %H:%M') }}</td></tr>
+{% else %}<tr><td colspan="8" class="px-3 py-6 text-center text-slate-400">No cases.</td></tr>{% endfor %}</tbody></table>
+{{ pager(page, pages, '/cases?search=' ~ (filters.search or '') ~ '&status=' ~ (filters.status or '')) }}
+{% endblock %}

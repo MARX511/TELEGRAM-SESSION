@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block title %}Accounts{% endblock %}{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Accounts</h1>
+<table class="w-full text-sm bg-white shadow rounded-lg"><thead class="bg-slate-100 text-left"><tr><th class="px-3 py-2">Telegram ID</th><th class="px-3 py-2">Username</th><th class="px-3 py-2">Phone</th><th class="px-3 py-2">Name</th><th class="px-3 py-2">Proxy</th><th class="px-3 py-2">Seen</th></tr></thead>
+<tbody>{% for a in rows %}<tr class="border-t"><td class="px-3 py-2">{{ a.telegram_id }}</td><td class="px-3 py-2">{{ a.username or '' }}</td><td class="px-3 py-2">{{ a.phone_masked or '' }}</td><td class="px-3 py-2">{{ a.display_name or '' }}</td><td class="px-3 py-2">{{ a.proxy_id or '' }}</td><td class="px-3 py-2 text-xs">{{ a.created_at.strftime('%Y-%m-%d') }}</td></tr>
+{% else %}<tr><td colspan="6" class="px-3 py-6 text-center text-slate-400">Accounts appear after a successful session check.</td></tr>{% endfor %}</tbody></table>
+{% endblock %}

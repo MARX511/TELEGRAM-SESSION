@@ -1,0 +1,13 @@
+[
+  {
+    "name": "default",
+    "reason_code": null,
+    "subject": "Report {{ case.case_number }}: {{ reason.name if reason else 'Policy violation' }} – {{ target.title or target.username or target.url }}",
+    "summary": "{{ case.title }}\n\nTarget: {{ target.target_type }} {{ target.url or ('@' + target.username if target.username else target.telegram_id) }}",
+    "reason_text": "{{ reason.default_explanation_template if reason else case.explanation }}",
+    "evidence_summary": "{% for e in evidence %}- [{{ e.evidence_type }}] {{ e.title }}{% if e.external_url %} ({{ e.external_url }}){% endif %} sha256={{ e.sha256 }}{% if e.captured_at %} captured {{ e.captured_at }}{% endif %}\n{% else %}No evidence attached.{% endfor %}",
+    "requested_review": "We request review of the reported target under {{ reason.policy_reference if reason else 'the applicable policy' }} and, where confirmed, removal of the infringing content.",
+    "reference": "Internal reference: {{ case.case_number }}{% if case.reference_number %} / external: {{ case.reference_number }}{% endif %}",
+    "additional_notes": "Legal basis: {{ case.legal_basis or 'n/a' }}\nPriority: {{ case.priority }}\nGenerated: {{ now }}"
+  }
+]
