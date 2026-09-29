@@ -104,10 +104,19 @@
     <p class="hint-box">{{ icon('circle-alert') }}<span>{{ _('Telegram usually does not answer each report individually. If the target is removed or restricted (its link shows it is unavailable), record the response as Accepted; the case then moves to Completed.') }}</span></p>
     {% endif %}
     {% if case.status == 'Ready' and has_permission(user, rbac.P_SUBMISSIONS_WRITE) %}
-    <form method="post" action="/cases/{{ case.id }}/submissions" class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end mt-2">
-      <div><label class="field-label" for="s-ch">{{ _('Channel') }}</label><select id="s-ch" name="channel" class="select">{% for c in channels %}<option value="{{ c }}">{{ L(c) }}</option>{% endfor %}</select></div>
+    <form method="post" action="/cases/{{ case.id }}/submissions" class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end mt-2"
+          data-submission data-default-email="{{ channel_defaults.official_email or '' }}" data-default-portal="{{ channel_defaults.official_portal or '' }}">
+      <div><label class="field-label" for="s-ch">{{ _('Channel') }}</label><select id="s-ch" name="channel" class="select" data-submission-channel>{% for c in channels %}<option value="{{ c }}">{{ L(c) }}</option>{% endfor %}</select></div>
       <div class="md:col-span-2"><label class="field-label" for="s-rc">{{ _('Official recipient or portal') }}</label>
-        <input id="s-rc" name="recipient" list="recipients" class="input" dir="ltr"><datalist id="recipients">{% for k, v in emails.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}{% for k, v in portals.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</datalist></div>
+        <select id="s-rc" name="recipient" class="select" dir="ltr" data-submission-recipient>
+          <optgroup label="{{ _('Official email addresses') }}">
+          {% for c in official_channels if c.kind == 'email' %}<option value="{{ c.key }}" data-kind="email">{{ c.key }} — {{ c.label_ar if lang == 'ar' else c.label_en }}</option>{% endfor %}
+          </optgroup>
+          <optgroup label="{{ _('Official portals and channels') }}">
+          {% for c in official_channels if c.kind == 'portal' %}<option value="{{ c.key }}" data-kind="portal">{{ c.key }}{% if c.how_en %} — {{ c.how_ar if lang == 'ar' else c.how_en }}{% endif %} — {{ c.label_ar if lang == 'ar' else c.label_en }}</option>{% endfor %}
+          </optgroup>
+        </select>
+        <p class="text-xs faint mt-1" data-recipient-note hidden>{{ _('Manual: no recipient needed — you file it and confirm here.') }}</p></div>
       <button class="btn btn-primary">{{ icon('send') }}{{ _('Create submission') }}</button>
       <label class="md:col-span-4 flex items-center gap-2 text-xs muted"><input type="checkbox" name="execute" value="1" class="checkbox">{{ _('Run it now (explicit approval, recorded in the audit log)') }}</label>
     </form>

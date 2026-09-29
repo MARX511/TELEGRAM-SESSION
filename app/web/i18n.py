@@ -327,6 +327,9 @@ AR: dict[str, str] = {
         "البريد غير مضبوط بعد، لذلك يُنشأ ملف ‎.eml‎ في مجلد exports لترسله من بريدك.",
     "Manual / official portal: you file the report yourself with the report button in the Telegram app or at telegram.org/support, then confirm it here with the reference.":
         "يدوي أو بوابة رسمية: تقدّم البلاغ بنفسك من زر الإبلاغ في تطبيق تيليجرام أو من telegram.org/support، ثم تؤكّده هنا بالرقم المرجعي.",
+    "Official email addresses": "عناوين البريد الرسمية",
+    "Official portals and channels": "البوابات والقنوات الرسمية",
+    "Manual: no recipient needed — you file it and confirm here.": "يدوي: لا يحتاج مستلمًا — تقدّمه بنفسك ثم تؤكّده هنا.",
     "Telegram usually does not answer each report individually. If the target is removed or restricted (its link shows it is unavailable), record the response as Accepted; the case then moves to Completed.":
         "تيليجرام لا يرد غالبًا على كل بلاغ بشكل منفصل. إذا حُذف الهدف أو قُيّد (يظهر رابطه غير متاح)، سجّل الرد «مقبول» فتنتقل القضية إلى «مكتمل».",
 }

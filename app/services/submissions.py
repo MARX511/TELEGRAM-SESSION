@@ -9,12 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import Settings, get_settings
-from app.db.models import Case, Evidence, Response, Submission, SubmissionAttempt, Target
+from app.db.models import Case, Evidence, Reason, Response, Submission, SubmissionAttempt, Target
 from app.domain.enums import AuditAction, CaseStatus, ErrorCategory, ExecutionStatus, SubmissionChannel
 from app.services import cases as case_service, evidence as evidence_service
 from app.services.audit import record_audit
 from app.services.errors import NotFoundError, SubmissionError, TransitionError, ValidationFailed, record_error
-from app.submission.channels import MAX_EMAIL_ATTACHMENT_BYTES, Attachment, ReportPackage, get_channel
+from app.submission.channels import (MAX_EMAIL_ATTACHMENT_BYTES, Attachment, ReportPackage, get_channel,
+                                    official_email_recipients, official_portals)
 from app.utils import dumps, loads
 
 OPEN_STATUSES = {ExecutionStatus.PENDING.value, ExecutionStatus.RUNNING.value, ExecutionStatus.WAITING.value,
@@ -45,6 +46,22 @@ async def build_package(db: AsyncSession, case: Case) -> ReportPackage:
     )
 
 
+async def default_recipient(db: AsyncSession, case: Case, channel: SubmissionChannel | str) -> str | None:
+    """The official address/portal to pre-fill for this case, so the operator never types it by hand.
+
+    Uses the reason's official_channel_hint when it matches the channel kind (an email for official_email, a
+    portal for official_portal); otherwise the general default for that kind."""
+    ch = SubmissionChannel(channel)
+    emails, portals = official_email_recipients(), official_portals()
+    reason = await db.get(Reason, case.reason_id) if case.reason_id else None
+    hint = (reason.official_channel_hint or "").strip().lower() if reason else ""
+    if ch == SubmissionChannel.OFFICIAL_EMAIL:
+        return hint if hint in emails else "abuse@telegram.org"
+    if ch == SubmissionChannel.OFFICIAL_PORTAL:
+        return hint if hint in portals else "in_app_report"
+    return None
+
+
 async def create_submission(db: AsyncSession, case: Case, *, channel: str, recipient: str | None = None,
                             actor: str | None = None) -> Submission:
     if case.status != CaseStatus.READY.value:
@@ -57,6 +74,8 @@ async def create_submission(db: AsyncSession, case: Case, *, channel: str, recip
         Submission.case_id == case.id, Submission.channel == ch.value, Submission.status.in_(OPEN_STATUSES)))).scalar_one()
     if dup:
         raise TransitionError("an open submission already exists for this case on this channel")
+    if not recipient and ch in (SubmissionChannel.OFFICIAL_EMAIL, SubmissionChannel.OFFICIAL_PORTAL):
+        recipient = await default_recipient(db, case, ch)
     package = await build_package(db, case)
     sub = Submission(case_id=case.id, target_id=case.target_id, channel=ch.value, recipient=recipient, operator=actor,
                      package_json=dumps(package.as_dict()), status=ExecutionStatus.PENDING.value)

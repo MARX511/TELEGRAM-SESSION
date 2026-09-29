@@ -166,8 +166,37 @@
     if (label) label.textContent = btn.getAttribute("data-busy-text");
   });
 
+  /* ---------- submission form: pick the official recipient automatically from the channel ---------- */
+  function syncRecipient(form) {
+    const channel = form.querySelector("[data-submission-channel]");
+    const recipient = form.querySelector("[data-submission-recipient]");
+    const note = form.querySelector("[data-recipient-note]");
+    if (!channel || !recipient) return;
+    const kind = channel.value === "official_email" ? "email" : channel.value === "official_portal" ? "portal" : null;
+    const def = kind === "email" ? form.getAttribute("data-default-email") : form.getAttribute("data-default-portal");
+    if (!kind) {                                   // manual: recipient not used
+      recipient.disabled = true;
+      recipient.closest("div").style.opacity = "0.5";
+      if (note) note.hidden = false;
+      return;
+    }
+    recipient.disabled = false;
+    recipient.closest("div").style.opacity = "";
+    if (note) note.hidden = true;
+    const options = Array.from(recipient.options);
+    options.forEach((o) => (o.hidden = o.getAttribute("data-kind") !== kind));  // show only this channel's options
+    const match = options.find((o) => o.getAttribute("data-kind") === kind && o.value === def) ||
+                  options.find((o) => o.getAttribute("data-kind") === kind);
+    if (match) recipient.value = match.value;
+  }
+  document.addEventListener("change", (e) => {
+    const form = e.target.closest("[data-submission]");
+    if (form && e.target.hasAttribute("data-submission-channel")) syncRecipient(form);
+  });
+
   /* ---------- init (also after htmx swaps) ---------- */
   function init(scope) {
+    scope.querySelectorAll("[data-submission]").forEach(syncRecipient);
     if (!reduceMotion && finePointer) scope.querySelectorAll("[data-tilt]").forEach(bindTilt);
     const counters = scope.querySelectorAll("[data-count]");
     if (reduceMotion || !("IntersectionObserver" in window)) return;

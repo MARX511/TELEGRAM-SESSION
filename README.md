@@ -45,12 +45,27 @@ Docker: `docker compose up` (PostgreSQL + Redis + app). Tests: `.venv/bin/pytest
   `TELEGRAM_PROVIDER=telethon`, `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` (from my.telegram.org) in `.env` and run the
   launcher again: it installs `telethon` automatically. The Sessions page shows which mode is active and what is missing.
 
-## Official email submissions
+## Official reporting channels
+The platform ships Telegram's documented official channels as a ready-made catalog, so nothing is typed by hand:
+- **Emails:** `abuse@` (illegal content, terrorism, fraud, impersonation, doxxing), `dmca@` (copyright),
+  `stopCA@` (child safety), `sticker-abuse@telegram.org`.
+- **Portals / handles:** the in-app Report button, `@ISISwatch` (terrorism), `@notoscam` (scams),
+  `telegram.org/support`, and the EU DSA form `telegram.org/dsa`.
+
+When a case reaches **Ready**, the recipient is pre-selected from the case's reason (a copyright case defaults to
+`dmca@`, spam to the in-app report, and so on); the picker lists the rest, grouped into emails and portals. Add
+channels for your own jurisdiction without editing code by setting `OFFICIAL_CHANNELS_EXTRA` in `.env`, e.g.
+`OFFICIAL_CHANNELS_EXTRA=[{"key":"legal@example.gov","kind":"email","label":"National regulator"}]`.
+
 With `SUBMISSION_EMAIL_ENABLED=true` and `SMTP_HOST`, `SMTP_PORT` (587 STARTTLS or 465 TLS), `SMTP_USER`,
-`SMTP_PASSWORD`, `SMTP_FROM`, an approved case can be sent once to an allow-listed Telegram address
-(abuse@ / dmca@ / stopCA@telegram.org), with the case's file evidence attached after an integrity check (15 MB total).
-Without SMTP an `.eml` file with the same content is written to `exports/` for you to send from your own mailbox.
-Replies arrive in that mailbox; record them on the case (**Record response**) to move it to Completed or Failed.
+`SMTP_PASSWORD`, `SMTP_FROM`, an approved case is sent once to the chosen allow-listed address, with the case's file
+evidence attached after an integrity check (15 MB total). Without SMTP an `.eml` file with the same content is
+written to `exports/` for you to send from your own mailbox. Replies arrive in that mailbox; record them on the case
+(**Record response**) to move it to Completed or Failed.
+
+**Not supported by design:** the platform never reports *from* the accounts in your `.session` files, and never sends
+the same report from many accounts. Session files are a registry only; reporting is one report per case through an
+official channel, filed by a human. See `docs/SECURITY_MODEL.md`.
 
 ## Dashboard
 - **Arabic (RTL) by default, English (LTR)** with the language button in the top bar; the choice is kept in a `lang`
