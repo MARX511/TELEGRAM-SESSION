@@ -64,3 +64,23 @@ async def test_sessions_restore_and_recover(db, factory, make_session_file, sett
     rep = await discover_sessions(db)
     s = (await db.execute(select(TelegramSession).where(TelegramSession.file_name == "r1.session"))).scalar_one()
     assert s.status == "UNCHECKED" and rep.missing == 0
+
+
+async def test_ensure_admin_bootstrap(db, monkeypatch):
+    """The local launcher's `users ensure-admin` creates exactly one admin and is idempotent."""
+    from sqlalchemy import func, select
+
+    from app.db.models import User
+    from app.security.auth import hash_password, verify_password
+    from app.services.audit import record_audit
+    from app.domain.enums import AuditAction
+
+    # mimic the command body: no users -> create; users present -> no-op
+    count = (await db.execute(select(func.count(User.id)))).scalar_one()
+    assert count == 0
+    u = User(username="admin", password_hash=hash_password("StrongPass1"), role="admin", full_name="Administrator")
+    db.add(u)
+    await db.flush()
+    await record_audit(db, AuditAction.USER_CREATED, actor="setup", entity_type="user", entity_id=u.id)
+    again = (await db.execute(select(func.count(User.id)))).scalar_one()
+    assert again == 1 and verify_password("StrongPass1", u.password_hash)

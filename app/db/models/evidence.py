@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, IdMixin, TimestampMixin
+from app.db.base import Base, IdMixin, UTCDateTime, TimestampMixin
 
 
 class Evidence(IdMixin, TimestampMixin, Base):
@@ -25,10 +25,10 @@ class Evidence(IdMixin, TimestampMixin, Base):
     size_bytes: Mapped[int | None] = mapped_column(Integer)
     sha256: Mapped[str | None] = mapped_column(String(64), index=True)
     external_url: Mapped[str | None] = mapped_column(String(1024))
-    captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    captured_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     added_by: Mapped[str | None] = mapped_column(String(64))
     integrity_ok: Mapped[bool | None] = mapped_column(Boolean)
-    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_verified_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
     custody: Mapped[list["EvidenceCustody"]] = relationship(back_populates="evidence", cascade="all, delete-orphan",
                                                            order_by="EvidenceCustody.at")
@@ -40,7 +40,7 @@ class EvidenceCustody(IdMixin, Base):
     evidence_id: Mapped[str] = mapped_column(ForeignKey("evidence.id", ondelete="CASCADE"), nullable=False, index=True)
     action: Mapped[str] = mapped_column(String(32), nullable=False)  # added | verified | exported | accessed | moved
     actor: Mapped[str | None] = mapped_column(String(64))
-    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     sha256_at_time: Mapped[str | None] = mapped_column(String(64))
     notes: Mapped[str | None] = mapped_column(Text)
 

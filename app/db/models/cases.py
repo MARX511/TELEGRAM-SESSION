@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, IdMixin, TimestampMixin
+from app.db.base import Base, IdMixin, UTCDateTime, TimestampMixin
 from app.domain.enums import CasePriority, CaseStatus
 
 
@@ -59,9 +59,9 @@ class Case(IdMixin, TimestampMixin, Base):
     assigned_operator: Mapped[str | None] = mapped_column(String(64), index=True)
     created_by: Mapped[str | None] = mapped_column(String(64))
     approved_by: Mapped[str | None] = mapped_column(String(64))
-    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     draft_json: Mapped[str | None] = mapped_column(Text)  # rendered report package (editable before approval)
-    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
     target = relationship("Target")
     reason = relationship("Reason")
@@ -81,6 +81,6 @@ class CaseEvent(IdMixin, Base):
     from_status: Mapped[str | None] = mapped_column(String(32))
     to_status: Mapped[str | None] = mapped_column(String(32))
     details_json: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
 
     case: Mapped[Case] = relationship(back_populates="events")

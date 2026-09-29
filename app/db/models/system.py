@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Index, Integer, String, Text
+from sqlalchemy import Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base, IdMixin, TimestampMixin
+from app.db.base import Base, IdMixin, UTCDateTime, TimestampMixin
 
 
 class ErrorRecord(IdMixin, Base):
@@ -23,7 +23,7 @@ class ErrorRecord(IdMixin, Base):
     operator: Mapped[str | None] = mapped_column(String(64))
     provider: Mapped[str | None] = mapped_column(String(32))
     details_json: Mapped[str | None] = mapped_column(Text)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
 
 
 class AuditLog(IdMixin, Base):
@@ -43,7 +43,7 @@ class AuditLog(IdMixin, Base):
     reason: Mapped[str | None] = mapped_column(Text)
     details_json: Mapped[str | None] = mapped_column(Text)
     ip_address: Mapped[str | None] = mapped_column(String(64))
-    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
 
 
 class JobRecord(IdMixin, TimestampMixin, Base):
@@ -57,9 +57,9 @@ class JobRecord(IdMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     max_attempts: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
-    not_before: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    not_before: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    started_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     worker: Mapped[str | None] = mapped_column(String(64))
     result_json: Mapped[str | None] = mapped_column(Text)
     error_category: Mapped[str | None] = mapped_column(String(32))
@@ -77,7 +77,7 @@ class ExportRecord(IdMixin, Base):
     size_bytes: Mapped[int | None] = mapped_column(Integer)
     requested_by: Mapped[str | None] = mapped_column(String(64))
     filters_json: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
 
 
 class BackupRecord(IdMixin, Base):
@@ -88,6 +88,6 @@ class BackupRecord(IdMixin, Base):
     sha256: Mapped[str | None] = mapped_column(String(64))
     size_bytes: Mapped[int | None] = mapped_column(Integer)
     created_by: Mapped[str | None] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    restored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    restored_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     notes: Mapped[str | None] = mapped_column(Text)
