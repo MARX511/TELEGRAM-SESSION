@@ -1,0 +1,271 @@
+{
+  "generated_at": "2026-09-29T05:32:52.945543+00:00",
+  "python": "3.11.15 (main, Mar  3 2026, 09:26:23) [GCC 13.3.0]",
+  "concurrency": 8,
+  "results": [
+    {
+      "sessions": 10,
+      "concurrency": 8,
+      "file_generation_s": 0.059,
+      "discover_s": 0.063,
+      "discover_rows_per_s": 158.7,
+      "check_all_s": 0.219,
+      "checks_per_s": 45.7,
+      "check_summary": {
+        "succeeded": 10,
+        "failed": 0,
+        "waiting": 0,
+        "errors": 0
+      },
+      "enqueue_s": 0.022,
+      "queue_drain_s": 0.338,
+      "queue_jobs_per_s": 29.6,
+      "queue_stats": {
+        "PENDING": 0,
+        "RUNNING": 0,
+        "COMPLETED": 10,
+        "FAILED": 0,
+        "RETRYING": 0,
+        "WAITING": 0,
+        "CANCELLED": 0
+      },
+      "dashboard": {
+        "api_list_100_ms": 37.5,
+        "api_stats_ms": 10.3,
+        "api_health_all_ms": 9.6,
+        "api_analytics_ms": 169.5,
+        "web_sessions_page_ms": 92.3,
+        "web_dashboard_ms": 27.9
+      },
+      "rss_delta_mb": 19.0,
+      "rss_peak_mb": 107.7,
+      "db_rows": {
+        "sessions": 10,
+        "session_checks": 20,
+        "audit_logs": 30,
+        "errors": 0,
+        "jobs": 10
+      }
+    },
+    {
+      "sessions": 25,
+      "concurrency": 8,
+      "file_generation_s": 0.117,
+      "discover_s": 0.052,
+      "discover_rows_per_s": 480.8,
+      "check_all_s": 0.205,
+      "checks_per_s": 122.0,
+      "check_summary": {
+        "succeeded": 24,
+        "failed": 1,
+        "waiting": 0,
+        "errors": 0
+      },
+      "enqueue_s": 0.039,
+      "queue_drain_s": 0.616,
+      "queue_jobs_per_s": 40.6,
+      "queue_stats": {
+        "PENDING": 0,
+        "RUNNING": 0,
+        "COMPLETED": 24,
+        "FAILED": 1,
+        "RETRYING": 0,
+        "WAITING": 0,
+        "CANCELLED": 0
+      },
+      "dashboard": {
+        "api_list_100_ms": 12.3,
+        "api_stats_ms": 10.8,
+        "api_health_all_ms": 10.0,
+        "api_analytics_ms": 29.9,
+        "web_sessions_page_ms": 15.8,
+        "web_dashboard_ms": 21.6
+      },
+      "rss_delta_mb": 2.7,
+      "rss_peak_mb": 110.4,
+      "db_rows": {
+        "sessions": 25,
+        "session_checks": 49,
+        "audit_logs": 76,
+        "errors": 2,
+        "jobs": 25
+      }
+    },
+    {
+      "sessions": 50,
+      "concurrency": 8,
+      "file_generation_s": 0.242,
+      "discover_s": 0.099,
+      "discover_rows_per_s": 505.1,
+      "check_all_s": 0.336,
+      "checks_per_s": 148.8,
+      "check_summary": {
+        "succeeded": 46,
+        "failed": 3,
+        "waiting": 1,
+        "errors": 0
+      },
+      "enqueue_s": 0.073,
+      "queue_drain_s": 1.014,
+      "queue_jobs_per_s": 49.3,
+      "queue_stats": {
+        "PENDING": 0,
+        "RUNNING": 0,
+        "COMPLETED": 47,
+        "FAILED": 2,
+        "RETRYING": 0,
+        "WAITING": 1,
+        "CANCELLED": 0
+      },
+      "dashboard": {
+        "api_list_100_ms": 10.9,
+        "api_stats_ms": 8.9,
+        "api_health_all_ms": 9.4,
+        "api_analytics_ms": 17.6,
+        "web_sessions_page_ms": 13.8,
+        "web_dashboard_ms": 16.3
+      },
+      "rss_delta_mb": 0.7,
+      "rss_peak_mb": 111.1,
+      "db_rows": {
+        "sessions": 50,
+        "session_checks": 97,
+        "audit_logs": 151,
+        "errors": 7,
+        "jobs": 50
+      }
+    },
+    {
+      "sessions": 100,
+      "concurrency": 8,
+      "file_generation_s": 0.513,
+      "discover_s": 0.2,
+      "discover_rows_per_s": 500.0,
+      "check_all_s": 0.666,
+      "checks_per_s": 150.2,
+      "check_summary": {
+        "succeeded": 91,
+        "failed": 7,
+        "waiting": 2,
+        "errors": 0
+      },
+      "enqueue_s": 0.148,
+      "queue_drain_s": 1.789,
+      "queue_jobs_per_s": 55.9,
+      "queue_stats": {
+        "PENDING": 0,
+        "RUNNING": 0,
+        "COMPLETED": 94,
+        "FAILED": 4,
+        "RETRYING": 0,
+        "WAITING": 2,
+        "CANCELLED": 0
+      },
+      "dashboard": {
+        "api_list_100_ms": 73.7,
+        "api_stats_ms": 8.3,
+        "api_health_all_ms": 12.1,
+        "api_analytics_ms": 17.2,
+        "web_sessions_page_ms": 13.5,
+        "web_dashboard_ms": 16.6
+      },
+      "rss_delta_mb": 1.1,
+      "rss_peak_mb": 112.2,
+      "db_rows": {
+        "sessions": 100,
+        "session_checks": 194,
+        "audit_logs": 302,
+        "errors": 16,
+        "jobs": 100
+      }
+    },
+    {
+      "sessions": 200,
+      "concurrency": 8,
+      "file_generation_s": 1.022,
+      "discover_s": 0.373,
+      "discover_rows_per_s": 536.2,
+      "check_all_s": 1.151,
+      "checks_per_s": 173.8,
+      "check_summary": {
+        "succeeded": 182,
+        "failed": 14,
+        "waiting": 4,
+        "errors": 0
+      },
+      "enqueue_s": 0.285,
+      "queue_drain_s": 3.452,
+      "queue_jobs_per_s": 57.9,
+      "queue_stats": {
+        "PENDING": 0,
+        "RUNNING": 0,
+        "COMPLETED": 188,
+        "FAILED": 8,
+        "RETRYING": 0,
+        "WAITING": 4,
+        "CANCELLED": 0
+      },
+      "dashboard": {
+        "api_list_100_ms": 12.1,
+        "api_stats_ms": 8.1,
+        "api_health_all_ms": 17.1,
+        "api_analytics_ms": 20.5,
+        "web_sessions_page_ms": 17.0,
+        "web_dashboard_ms": 22.2
+      },
+      "rss_delta_mb": 1.1,
+      "rss_peak_mb": 113.2,
+      "db_rows": {
+        "sessions": 200,
+        "session_checks": 388,
+        "audit_logs": 604,
+        "errors": 32,
+        "jobs": 200
+      }
+    },
+    {
+      "sessions": 500,
+      "concurrency": 8,
+      "file_generation_s": 2.681,
+      "discover_s": 0.968,
+      "discover_rows_per_s": 516.5,
+      "check_all_s": 3.034,
+      "checks_per_s": 164.8,
+      "check_summary": {
+        "succeeded": 455,
+        "failed": 35,
+        "waiting": 10,
+        "errors": 0
+      },
+      "enqueue_s": 0.729,
+      "queue_drain_s": 8.712,
+      "queue_jobs_per_s": 57.4,
+      "queue_stats": {
+        "PENDING": 0,
+        "RUNNING": 0,
+        "COMPLETED": 470,
+        "FAILED": 20,
+        "RETRYING": 0,
+        "WAITING": 10,
+        "CANCELLED": 0
+      },
+      "dashboard": {
+        "api_list_100_ms": 14.0,
+        "api_stats_ms": 7.5,
+        "api_health_all_ms": 30.3,
+        "api_analytics_ms": 19.9,
+        "web_sessions_page_ms": 15.3,
+        "web_dashboard_ms": 18.6
+      },
+      "rss_delta_mb": 3.2,
+      "rss_peak_mb": 116.5,
+      "db_rows": {
+        "sessions": 500,
+        "session_checks": 970,
+        "audit_logs": 1510,
+        "errors": 80,
+        "jobs": 500
+      }
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{% from "partials/macros.html" import badge, pager %}
+<table class="w-full text-sm bg-white shadow rounded-lg overflow-hidden">
+<thead class="bg-slate-100 text-left"><tr>
+{% for col, label in [('file_name','File'),('location','Location'),('status','Status'),('health','Health'),('username','User'),('last_check','Last check'),('consecutive_failures','Fails'),('availability','Avail.')] %}
+<th class="px-3 py-2"><a href="/sessions?status={{ filters.status or '' }}&health={{ filters.health or '' }}&location={{ filters.location or '' }}&search={{ filters.search or '' }}&sort={{ col }}&order={{ 'desc' if filters.sort == col and filters.order == 'asc' else 'asc' }}">{{ label }}</a></th>
+{% endfor %}<th class="px-3 py-2">Error</th><th class="px-3 py-2">Actions</th></tr></thead>
+<tbody>{% for s in rows %}
+<tr class="border-t">
+<td class="px-3 py-2 font-mono text-xs">{{ s.file_name }}{% if s.encrypted %} 🔒{% endif %}</td>
+<td class="px-3 py-2">{{ s.location }}</td><td class="px-3 py-2">{{ badge(s.status) }}</td><td class="px-3 py-2">{{ badge(s.health) }}</td>
+<td class="px-3 py-2">{{ s.username or '' }}</td><td class="px-3 py-2 text-xs">{{ s.last_check.strftime('%Y-%m-%d %H:%M') if s.last_check else '—' }}</td>
+<td class="px-3 py-2">{{ s.consecutive_failures }}</td><td class="px-3 py-2">{{ (s.availability*100)|round(0)|int }}%</td>
+<td class="px-3 py-2 text-xs text-red-700">{{ (s.last_error or '')[:50] }}</td>
+<td class="px-3 py-2 space-x-1 whitespace-nowrap">
+{% if has_permission(user, rbac.P_SESSIONS_CHECK) %}<form class="inline" method="post" action="/sessions/{{ s.id }}/check"><button class="underline">check</button></form>{% endif %}
+{% if has_permission(user, rbac.P_SESSIONS_WRITE) %}
+{% if s.enabled %}<form class="inline" method="post" action="/sessions/{{ s.id }}/disable"><button class="underline">disable</button></form>
+{% else %}<form class="inline" method="post" action="/sessions/{{ s.id }}/enable"><button class="underline">enable</button></form>{% endif %}
+{% if s.location != 'quarantined' %}<form class="inline" method="post" action="/sessions/{{ s.id }}/quarantine"><button class="underline text-red-700">quarantine</button></form>{% endif %}
+{% endif %}</td></tr>
+{% else %}<tr><td colspan="10" class="px-3 py-6 text-center text-slate-400">No sessions. Put .session files under sessions/active and scan.</td></tr>{% endfor %}
+</tbody></table>
+{{ pager(page, pages, '/sessions?status=' ~ (filters.status or '') ~ '&health=' ~ (filters.health or '') ~ '&location=' ~ (filters.location or '') ~ '&search=' ~ (filters.search or '') ~ '&sort=' ~ filters.sort ~ '&order=' ~ filters.order) }}

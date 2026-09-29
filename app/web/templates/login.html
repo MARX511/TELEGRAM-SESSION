@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Login{% endblock %}
+{% block content %}
+<div class="max-w-sm mx-auto mt-24 bg-white shadow rounded-lg p-6">
+<h1 class="text-xl font-semibold mb-4">Sign in</h1>
+{% if error %}<div class="text-red-700 text-sm mb-3">{{ error }}</div>{% endif %}
+<form method="post" action="/login" class="space-y-3">
+<input type="hidden" name="next" value="{{ next }}">
+<input name="username" placeholder="username" class="w-full border rounded px-3 py-2" required>
+<input name="password" type="password" placeholder="password" class="w-full border rounded px-3 py-2" required>
+<button class="w-full bg-slate-900 text-white rounded py-2">Login</button>
+</form></div>
+{% endblock %}

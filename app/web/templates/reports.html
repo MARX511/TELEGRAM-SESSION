@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% from "partials/macros.html" import stat %}{% block title %}Reports{% endblock %}{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Reports &amp; analytics (§26)</h1>
+<div class="grid md:grid-cols-4 gap-3 mb-6">
+{{ stat('Avg processing (h)', data.average_processing_hours if data.average_processing_hours is not none else '—') }}
+{{ stat('Avg response (h)', data.submission_response_hours if data.submission_response_hours is not none else '—') }}
+{{ stat('Session availability', (data.session_availability.average_availability*100)|round(1) ~ '%') }}
+{{ stat('Submissions OK / failed', data.success_failure.completed ~ ' / ' ~ data.success_failure.failed) }}
+</div>
+<div class="grid md:grid-cols-3 gap-4 mb-6">
+<div class="bg-white shadow rounded-lg p-4"><h3 class="font-semibold mb-2">Reports by day (30d)</h3><ul class="text-sm">{% for r in data.reports_by_day %}<li class="flex justify-between"><span>{{ r.day }}</span><span>{{ r.count }}</span></li>{% else %}<li class="text-slate-400">none</li>{% endfor %}</ul></div>
+<div class="bg-white shadow rounded-lg p-4"><h3 class="font-semibold mb-2">Reports by reason</h3><ul class="text-sm">{% for r in data.reports_by_reason %}<li class="flex justify-between"><span>{{ r.reason }}</span><span>{{ r.count }}</span></li>{% else %}<li class="text-slate-400">none</li>{% endfor %}</ul></div>
+<div class="bg-white shadow rounded-lg p-4"><h3 class="font-semibold mb-2">Failure causes (30d)</h3><ul class="text-sm">{% for r in data.failure_causes %}<li class="flex justify-between"><span>{{ r.category }}</span><span>{{ r.count }}</span></li>{% else %}<li class="text-slate-400">none</li>{% endfor %}</ul></div>
+</div>
+<div class="bg-white shadow rounded-lg p-4 mb-4"><h3 class="font-semibold mb-2">Export (§19)</h3>
+{% if has_permission(user, rbac.P_REPORTS_EXPORT) %}<form method="post" action="/reports/export" class="flex gap-2 text-sm"><select name="export_type" class="border rounded px-2 py-1">{% for t in types %}<option>{{ t }}</option>{% endfor %}</select><select name="fmt" class="border rounded px-2 py-1"><option>json</option><option>csv</option></select><button class="bg-slate-900 text-white rounded px-3">Export</button></form>{% endif %}
+<table class="w-full text-xs mt-3"><thead class="text-left text-slate-500"><tr><th>When</th><th>Type</th><th>Format</th><th>File</th><th>SHA-256</th><th>By</th><th></th></tr></thead><tbody>
+{% for e in exports %}<tr class="border-t"><td class="py-1">{{ e.created_at.strftime('%Y-%m-%d %H:%M') }}</td><td>{{ e.export_type }}</td><td>{{ e.fmt }}</td><td>{{ e.file_path.split('/')[-1] }}</td><td class="font-mono">{{ (e.sha256 or '')[:16] }}…</td><td>{{ e.requested_by }}</td><td><a class="underline" href="/api/v1/exports/{{ e.id }}/download">download</a></td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

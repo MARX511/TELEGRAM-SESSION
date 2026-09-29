@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% from "partials/macros.html" import stat, badge %}
+{% block content %}
+<h1 class="text-2xl font-semibold mb-4">Dashboard</h1>
+<h2 class="text-sm uppercase text-slate-500 mb-2">Sessions (§23)</h2>
+<div class="grid grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
+{{ stat('Total', sessions.total) }}{{ stat('Active', sessions.active, 'green') }}{{ stat('Valid', sessions.valid, 'green') }}
+{{ stat('Banned', sessions.banned, 'red') }}{{ stat('Invalid', sessions.invalid, 'red') }}{{ stat('Expired', sessions.expired, 'red') }}
+{{ stat('Unavailable', sessions.unavailable) }}{{ stat('Check failed', sessions.check_failed, 'amber') }}
+</div>
+<h2 class="text-sm uppercase text-slate-500 mb-2">Targets (§24)</h2>
+<div class="grid grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+{{ stat('Total', targets.total) }}{{ stat('Accounts', targets.accounts) }}{{ stat('Channels', targets.channels) }}{{ stat('Groups', targets.groups) }}
+{{ stat('Messages', targets.messages) }}{{ stat('Open cases', targets.open_cases, 'blue') }}{{ stat('Closed cases', targets.closed_cases) }}
+</div>
+<h2 class="text-sm uppercase text-slate-500 mb-2">Cases (§25)</h2>
+<div class="grid grid-cols-3 lg:grid-cols-9 gap-3 mb-6">
+{% for s in ['Draft','Pending Review','Approved','Ready','Submitted','Awaiting Response','Completed','Failed','Closed'] %}{{ stat(s, cases[s]) }}{% endfor %}
+</div>
+<div class="grid md:grid-cols-3 gap-4">
+<div class="bg-white shadow rounded-lg p-4"><h3 class="font-semibold mb-2">Submissions</h3>
+<ul class="text-sm">{% for k, v in submissions.items() %}<li class="flex justify-between"><span>{{ badge(k) }}</span><span>{{ v }}</span></li>{% endfor %}</ul></div>
+<div class="bg-white shadow rounded-lg p-4"><h3 class="font-semibold mb-2">Session availability</h3>
+<div class="text-3xl">{{ (availability.average_availability*100)|round(1) }}%</div>
+<ul class="text-sm mt-2">{% for k, v in availability.by_health.items() %}<li class="flex justify-between"><span>{{ badge(k) }}</span><span>{{ v }}</span></li>{% endfor %}</ul>
+<p class="text-xs text-slate-500 mt-2">Application capacity ≠ account availability (§37).</p></div>
+<div class="bg-white shadow rounded-lg p-4"><h3 class="font-semibold mb-2">Failure causes (7d)</h3>
+<ul class="text-sm">{% for f in failures %}<li class="flex justify-between"><span>{{ f.category }}</span><span>{{ f.count }}</span></li>{% else %}<li class="text-slate-400">none</li>{% endfor %}</ul></div>
+</div>
+{% endblock %}

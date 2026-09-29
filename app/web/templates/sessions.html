@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% from "partials/macros.html" import stat %}{% block title %}Sessions{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4"><h1 class="text-2xl font-semibold">Sessions</h1>
+<div class="space-x-2">
+{% if has_permission(user, rbac.P_SESSIONS_WRITE) %}<form class="inline" method="post" action="/sessions/scan"><button class="bg-slate-900 text-white rounded px-3 py-1.5 text-sm">Scan folder</button></form>{% endif %}
+{% if has_permission(user, rbac.P_SESSIONS_CHECK) %}<form class="inline" method="post" action="/sessions/check-all"><button class="bg-blue-700 text-white rounded px-3 py-1.5 text-sm">Bulk health check</button></form>{% endif %}
+</div></div>
+<div class="grid grid-cols-4 lg:grid-cols-8 gap-3 mb-4">
+{{ stat('Total', stats.total) }}{{ stat('Active', stats.active, 'green') }}{{ stat('Valid', stats.valid, 'green') }}{{ stat('Banned', stats.banned, 'red') }}
+{{ stat('Invalid', stats.invalid, 'red') }}{{ stat('Expired', stats.expired, 'red') }}{{ stat('Unavailable', stats.unavailable) }}{{ stat('Check failed', stats.check_failed, 'amber') }}
+</div>
+<form method="get" action="/sessions" class="flex flex-wrap gap-2 mb-3 text-sm" hx-get="/sessions" hx-target="#tbl" hx-trigger="submit, change">
+<input name="search" value="{{ filters.search or '' }}" placeholder="search file / username / tag" class="border rounded px-2 py-1">
+<select name="status" class="border rounded px-2 py-1"><option value="">any status</option>{% for s in ['ACTIVE','VALID','BANNED','INVALID','EXPIRED','UNAVAILABLE','CHECK_FAILED','UNCHECKED'] %}<option {% if filters.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+<select name="health" class="border rounded px-2 py-1"><option value="">any health</option>{% for s in ['Healthy','Warning','Critical','Unavailable'] %}<option {% if filters.health == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+<select name="location" class="border rounded px-2 py-1"><option value="">any location</option>{% for s in ['active','disabled','quarantined'] %}<option {% if filters.location == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+<input type="hidden" name="sort" value="{{ filters.sort }}"><input type="hidden" name="order" value="{{ filters.order }}">
+<button class="border rounded px-3 py-1">Filter</button></form>
+<div id="tbl">{% include "partials/sessions_table.html" %}</div>
+{% endblock %}
