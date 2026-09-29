@@ -1,15 +1,60 @@
-{% extends "base.html" %}{% from "partials/macros.html" import stat, badge, pager %}{% block title %}Targets{% endblock %}{% block content %}
-<h1 class="text-2xl font-semibold mb-4">Targets</h1>
-<div class="grid grid-cols-4 lg:grid-cols-7 gap-3 mb-4">{{ stat('Total', stats.total) }}{{ stat('Accounts', stats.accounts) }}{{ stat('Channels', stats.channels) }}{{ stat('Groups', stats.groups) }}{{ stat('Messages', stats.messages) }}{{ stat('Open cases', stats.open_cases, 'blue') }}{{ stat('Closed cases', stats.closed_cases) }}</div>
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% from "partials/macros.html" import stat, badge, pager, page_header, empty with context %}
+{% block title %}{{ _('Targets') }}{% endblock %}
+{% block content %}
+{{ page_header(_('Targets'), _('Channels, groups, accounts and messages under review.'), 'crosshair') }}
+<div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3 mb-5">
+  {{ stat(_('Total'), stats.total, 'accent2', 'crosshair', 0) }}
+  {{ stat(_('Accounts'), stats.accounts, 'neutral', 'user', 1) }}
+  {{ stat(_('Channels'), stats.channels, 'neutral', 'radar', 2) }}
+  {{ stat(_('Groups'), stats.groups, 'neutral', 'users', 3) }}
+  {{ stat(_('Messages'), stats.messages, 'neutral', 'mail', 4) }}
+  {{ stat(_('Open cases'), stats.open_cases, 'accent', 'folder-open', 5) }}
+  {{ stat(_('Closed cases'), stats.closed_cases, 'neutral', 'archive', 6) }}
+</div>
 {% if has_permission(user, rbac.P_TARGETS_WRITE) %}
-<form method="post" action="/targets" class="grid md:grid-cols-7 gap-2 mb-4 text-sm bg-white shadow rounded-lg p-3">
-<select name="target_type" class="border rounded px-2 py-1">{% for t in types %}<option>{{ t }}</option>{% endfor %}</select>
-<input name="url" placeholder="https://t.me/…" class="border rounded px-2 py-1"><input name="username" placeholder="@username" class="border rounded px-2 py-1"><input name="telegram_id" placeholder="telegram id" class="border rounded px-2 py-1">
-<input name="title" placeholder="title" class="border rounded px-2 py-1"><input name="tags" placeholder="tags" class="border rounded px-2 py-1"><button class="bg-slate-900 text-white rounded px-3">Add target</button></form>{% endif %}
-<form method="get" class="flex gap-2 mb-3 text-sm"><input name="search" value="{{ filters.search or '' }}" placeholder="search url / username / id / title" class="border rounded px-2 py-1 w-72">
-<select name="target_type" class="border rounded px-2 py-1"><option value="">any type</option>{% for t in types %}<option {% if filters.target_type == t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select><button class="border rounded px-3">Search</button></form>
-<table class="w-full text-sm bg-white shadow rounded-lg"><thead class="bg-slate-100 text-left"><tr><th class="px-3 py-2">Type</th><th class="px-3 py-2">Username</th><th class="px-3 py-2">URL</th><th class="px-3 py-2">Title</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Tags</th><th class="px-3 py-2">Added</th></tr></thead>
-<tbody>{% for t in rows %}<tr class="border-t"><td class="px-3 py-2">{{ t.target_type }}</td><td class="px-3 py-2">{{ t.username or '' }}</td><td class="px-3 py-2 text-xs">{{ t.url or '' }}</td><td class="px-3 py-2">{{ t.title or '' }}</td><td class="px-3 py-2">{{ badge(t.status) }}</td><td class="px-3 py-2 text-xs">{{ t.tags or '' }}</td><td class="px-3 py-2 text-xs">{{ t.created_at.strftime('%Y-%m-%d') }} {{ t.created_by or '' }}</td></tr>
-{% else %}<tr><td colspan="7" class="px-3 py-6 text-center text-slate-400">No targets.</td></tr>{% endfor %}</tbody></table>
+<form method="post" action="/targets" class="card reveal mb-4">
+  <div class="card-title">{{ icon('plus') }}{{ _('Add target') }}</div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+    <div><label class="field-label" for="t-type">{{ _('Type') }}</label>
+      <select id="t-type" name="target_type" class="select">{% for t in types %}<option value="{{ t }}">{{ L(t) }}</option>{% endfor %}</select></div>
+    <div class="lg:col-span-2"><label class="field-label" for="t-url">{{ _('Link') }}</label><input id="t-url" name="url" class="input" dir="ltr" placeholder="https://t.me/…"></div>
+    <div><label class="field-label" for="t-user">{{ _('Username') }}</label><input id="t-user" name="username" class="input" dir="ltr" placeholder="@username"></div>
+    <div><label class="field-label" for="t-id">{{ _('Telegram ID') }}</label><input id="t-id" name="telegram_id" class="input" dir="ltr" inputmode="numeric"></div>
+    <div><label class="field-label" for="t-title">{{ _('Title') }}</label><input id="t-title" name="title" class="input"></div>
+    <div class="lg:col-span-5"><label class="field-label" for="t-tags">{{ _('Tags') }}</label><input id="t-tags" name="tags" class="input" placeholder="{{ _('Comma separated') }}"></div>
+    <button class="btn btn-primary">{{ icon('plus') }}{{ _('Add target') }}</button>
+  </div>
+</form>
+{% endif %}
+<form method="get" class="card reveal flex flex-wrap items-end gap-3 mb-4">
+  <div class="flex-1 min-w-[14rem]"><label class="field-label" for="t-q">{{ _('Search') }}</label>
+    <div class="input-icon">{{ icon('search') }}<input id="t-q" name="search" value="{{ filters.search or '' }}" placeholder="{{ _('Link, username, ID or title') }}" class="input"></div></div>
+  <div><label class="field-label" for="t-ft">{{ _('Type') }}</label>
+    <select id="t-ft" name="target_type" class="select"><option value="">{{ _('Any type') }}</option>{% for t in types %}<option value="{{ t }}" {% if filters.target_type == t %}selected{% endif %}>{{ L(t) }}</option>{% endfor %}</select></div>
+  <button class="btn btn-ghost">{{ icon('search') }}{{ _('Search') }}</button>
+</form>
+<div class="card card-flush reveal">
+<div class="table-wrap">
+<table class="table">
+  <thead><tr><th>{{ _('Type') }}</th><th>{{ _('Target') }}</th><th>{{ _('Title') }}</th><th>{{ _('Status') }}</th><th>{{ _('Tags') }}</th><th>{{ _('Added') }}</th></tr></thead>
+  <tbody>
+  {% for t in rows %}
+  <tr>
+    <td>{{ L(t.target_type) }}</td>
+    <td><span class="ltr cell-strong">{{ ('@' ~ t.username) if t.username else (t.url or t.telegram_id) }}</span>{% if t.url and t.username %}<span class="cell-sub ltr">{{ t.url }}</span>{% endif %}</td>
+    <td>{{ t.title or '—' }}</td>
+    <td>{{ badge(t.status) }}</td>
+    <td class="text-xs muted">{{ t.tags or '' }}</td>
+    <td class="text-xs muted"><span class="ltr">{{ t.created_at.strftime('%Y-%m-%d') }}</span> · {{ t.created_by or '' }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6">{{ empty(_('No targets yet.'), 'crosshair') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+</div>
 {{ pager(page, pages, '/targets?search=' ~ (filters.search or '') ~ '&target_type=' ~ (filters.target_type or '')) }}
 {% endblock %}

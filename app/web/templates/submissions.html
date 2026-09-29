@@ -1,9 +1,42 @@
-{% extends "base.html" %}{% from "partials/macros.html" import stat, badge, pager %}{% block title %}Submissions{% endblock %}{% block content %}
-<h1 class="text-2xl font-semibold mb-1">Submissions &amp; responses</h1><p class="text-xs text-slate-500 mb-4">Official channels only: manual / portal / allow-listed official email. No account-based submission exists (§13).</p>
-<div class="grid grid-cols-4 lg:grid-cols-7 gap-3 mb-4">{% for k in ['PENDING','RUNNING','WAITING','COMPLETED','FAILED','RETRYING','CANCELLED'] %}{{ stat(k, stats[k]) }}{% endfor %}</div>
-<form method="get" class="flex gap-2 mb-3 text-sm"><select name="status" class="border rounded px-2 py-1"><option value="">any status</option>{% for k in ['PENDING','RUNNING','WAITING','COMPLETED','FAILED','RETRYING','CANCELLED'] %}<option {% if filters.status == k %}selected{% endif %}>{{ k }}</option>{% endfor %}</select><button class="border rounded px-3">Filter</button></form>
-<table class="w-full text-sm bg-white shadow rounded-lg"><thead class="bg-slate-100 text-left"><tr><th class="px-3 py-2">Case</th><th class="px-3 py-2">Channel</th><th class="px-3 py-2">Recipient</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Reference</th><th class="px-3 py-2">Operator</th><th class="px-3 py-2">Attempts</th><th class="px-3 py-2">Responses</th><th class="px-3 py-2">Result</th></tr></thead>
-<tbody>{% for s in rows %}<tr class="border-t"><td class="px-3 py-2"><a class="underline" href="/cases/{{ s.case_id }}">{{ s.case_id[:8] }}</a></td><td class="px-3 py-2">{{ s.channel }}</td><td class="px-3 py-2 text-xs">{{ s.recipient or '' }}</td><td class="px-3 py-2">{{ badge(s.status) }}</td><td class="px-3 py-2 text-xs">{{ s.reference_number or '' }}</td><td class="px-3 py-2">{{ s.operator or '' }}</td><td class="px-3 py-2">{{ s.attempts|length }}</td><td class="px-3 py-2 text-xs">{% for r in s.responses %}{{ r.outcome }} {% endfor %}</td><td class="px-3 py-2 text-xs">{{ (s.result or s.error_message or '')[:60] }}</td></tr>
-{% else %}<tr><td colspan="9" class="px-3 py-6 text-center text-slate-400">No submissions.</td></tr>{% endfor %}</tbody></table>
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% from "partials/macros.html" import stat, badge, pager, page_header, empty with context %}
+{% block title %}{{ _('Submissions') }}{% endblock %}
+{% block content %}
+{{ page_header(_('Submissions and responses'), _('Official channels only: manual, official portal, or an allow-listed official email. No account-based submission exists.'), 'send') }}
+{% set tones = {'PENDING':'info','RUNNING':'info','WAITING':'warn','COMPLETED':'ok','FAILED':'bad','RETRYING':'warn','CANCELLED':'neutral'} %}
+{% set icons_ = {'PENDING':'clock','RUNNING':'activity','WAITING':'hourglass','COMPLETED':'circle-check','FAILED':'octagon-x','RETRYING':'refresh-cw','CANCELLED':'x'} %}
+<div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3 mb-5">
+  {% for k in ['PENDING','RUNNING','WAITING','COMPLETED','FAILED','RETRYING','CANCELLED'] %}{{ stat(L(k), stats[k], tones[k], icons_[k], loop.index0) }}{% endfor %}
+</div>
+<form method="get" class="card reveal flex flex-wrap items-end gap-3 mb-4">
+  <div><label class="field-label" for="s-fs">{{ _('Status') }}</label>
+    <select id="s-fs" name="status" class="select"><option value="">{{ _('Any status') }}</option>{% for k in ['PENDING','RUNNING','WAITING','COMPLETED','FAILED','RETRYING','CANCELLED'] %}<option value="{{ k }}" {% if filters.status == k %}selected{% endif %}>{{ L(k) }}</option>{% endfor %}</select></div>
+  <button class="btn btn-ghost">{{ icon('filter') }}{{ _('Filter') }}</button>
+</form>
+<div class="card card-flush reveal">
+<div class="table-wrap">
+<table class="table">
+  <thead><tr><th>{{ _('Case') }}</th><th>{{ _('Channel') }}</th><th>{{ _('Recipient') }}</th><th>{{ _('Status') }}</th><th>{{ _('Reference') }}</th><th>{{ _('Operator') }}</th><th>{{ _('Attempts') }}</th><th>{{ _('Responses') }}</th><th>{{ _('Result') }}</th></tr></thead>
+  <tbody>
+  {% for s in rows %}
+  <tr>
+    <td><a class="link ltr mono" href="/cases/{{ s.case_id }}">{{ s.case_id[:8] }}</a></td>
+    <td>{{ L(s.channel) }}</td>
+    <td class="text-xs"><span class="ltr">{{ s.recipient or '—' }}</span></td>
+    <td>{{ badge(s.status) }}</td>
+    <td class="text-xs"><span class="ltr mono">{{ s.reference_number or '—' }}</span></td>
+    <td>{{ s.operator or '—' }}</td>
+    <td class="num">{{ s.attempts|length }}</td>
+    <td class="text-xs">{% for r in s.responses %}{{ L(r.outcome) }}{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}</td>
+    <td class="text-xs muted" style="max-width:18rem">{{ (s.result or s.error_message or '')[:80] }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="9">{{ empty(_('No submissions yet.'), 'send') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+</div>
 {{ pager(page, pages, '/submissions?status=' ~ (filters.status or '')) }}
 {% endblock %}

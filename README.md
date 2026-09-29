@@ -33,8 +33,21 @@ python scripts/make_env.py                 # writes .env (SQLite + fresh secrets
 .venv/bin/python -m app.cli.main sessions scan && .venv/bin/python -m app.cli.main sessions check --all
 .venv/bin/python -m app.cli.main serve     # http://localhost:8000  (API docs: /api/docs)
 ```
-Dashboard assets are self-hosted (no CDN); rebuild them after template changes with `scripts/build_assets.sh`.
 Docker: `docker compose up` (PostgreSQL + Redis + app). Tests: `.venv/bin/pytest`. Benchmark: `python -m benchmarks --db <scratch-db-url>`.
+
+## Dashboard
+- **Arabic (RTL) by default, English (LTR)** with the language button in the top bar; the choice is kept in a `lang`
+  cookie. UI strings live in `app/web/i18n.py` (English keys → Arabic); a test fails if a template string has no
+  Arabic translation.
+- **Dark and light themes** with the theme button (`theme` cookie, rendered server-side so there is no flash).
+- **3D:** a real-time three.js scene on the sign-in screen (pauses in background tabs, still frame under
+  "reduce motion", CSS fallback without WebGL), and light CSS 3D in the app (tilt cards, the dashboard cube).
+- Charts are server-rendered (`app/web/charts.py`); every colour-coded chart has a legend or direct labels.
+- Brand name and copyright owner are settings (`BRAND_NAME_AR/EN`, `COPYRIGHT_OWNER_AR/EN`); the copyright notice
+  appears on the sign-in screen and in Settings → About.
+- Everything is self-hosted (no CDN): fonts (IBM Plex, OFL), three.js (MIT), Lucide icons (ISC), htmx (BSD-2),
+  each licence ships next to its files under `app/web/static`. After changing templates, CSS or the icon list
+  run `scripts/build_assets.sh` (needs Node.js) to rebuild `app.css`, fonts, three.js and `partials/icons.html`.
 
 ## Documents
 `docs/PROJECT_STATE.md` · `ARCHITECTURE.md` · `DATABASE_DESIGN.md` · `SESSION_ARCHITECTURE.md` · `CASE_WORKFLOW.md` ·

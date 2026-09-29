@@ -1,29 +1,81 @@
-{% extends "base.html" %}{% from "partials/macros.html" import stat, badge %}
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% from "partials/macros.html" import stat, badge, section, hbars, donut_chart, empty with context %}
+{% block title %}{{ _('Dashboard') }}{% endblock %}
 {% block content %}
-<h1 class="text-2xl font-semibold mb-4">Dashboard</h1>
-<h2 class="text-sm uppercase text-slate-500 mb-2">Sessions (§23)</h2>
-<div class="grid grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
-{{ stat('Total', sessions.total) }}{{ stat('Active', sessions.active, 'green') }}{{ stat('Valid', sessions.valid, 'green') }}
-{{ stat('Banned', sessions.banned, 'red') }}{{ stat('Invalid', sessions.invalid, 'red') }}{{ stat('Expired', sessions.expired, 'red') }}
-{{ stat('Unavailable', sessions.unavailable) }}{{ stat('Check failed', sessions.check_failed, 'amber') }}
+<section class="hero glass reveal">
+  <div class="hero-grid" aria-hidden="true"></div>
+  <span class="orb orb-a" aria-hidden="true"></span><span class="orb orb-b" aria-hidden="true"></span><span class="orb orb-c" aria-hidden="true"></span>
+  <div class="relative" style="max-width:44rem">
+    <span class="eyebrow">{{ _('Control center') }}</span>
+    <h1 class="hero-title mt-1">{{ _('Welcome back,') }} <span class="gradient-text">{{ user.full_name or user.username }}</span></h1>
+    <p class="hero-sub">{{ _('Here is the live state of your sessions, cases and official submissions.') }}</p>
+    <div class="hero-actions">
+      {% if has_permission(user, rbac.P_SESSIONS_WRITE) %}
+      <form method="post" action="/sessions/scan"><button class="btn btn-primary">{{ icon('scan-search') }}{{ _('Scan sessions') }}</button></form>
+      {% endif %}
+      <a class="btn btn-ghost" href="/cases">{{ icon('plus') }}{{ _('New case') }}</a>
+      <a class="btn btn-ghost" href="/reports">{{ icon('chart-column') }}{{ _('Reports') }}</a>
+    </div>
+  </div>
+  <div class="hero-3d" aria-hidden="true">
+    <div class="cube-scene"><div class="cube"><span></span><span></span><span></span><span></span><span></span><span></span>
+      <div class="cube-core"><span></span><span></span><span></span><span></span><span></span><span></span></div></div></div>
+  </div>
+</section>
+
+<div class="grid grid-cols-1 xs:grid-cols-2 xl:grid-cols-4 gap-4 mt-5">
+  {{ stat(_('Registered sessions'), sessions.total, 'accent2', 'key-round', 1, kpi=True) }}
+  {{ stat(_('Healthy sessions'), availability.by_health.get('Healthy', 0), 'ok', 'shield-check', 2, _('Average availability {pct}%').format(pct=(availability.average_availability * 100)|round(1)), kpi=True) }}
+  {{ stat(_('Open cases'), targets.open_cases, 'accent', 'briefcase', 3, _('{n} closed').format(n=targets.closed_cases), kpi=True) }}
+  {{ stat(_('Completed submissions'), submissions.get('COMPLETED', 0), 'info', 'send', 4, _('{n} awaiting confirmation').format(n=submissions.get('WAITING', 0)), kpi=True) }}
 </div>
-<h2 class="text-sm uppercase text-slate-500 mb-2">Targets (§24)</h2>
-<div class="grid grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
-{{ stat('Total', targets.total) }}{{ stat('Accounts', targets.accounts) }}{{ stat('Channels', targets.channels) }}{{ stat('Groups', targets.groups) }}
-{{ stat('Messages', targets.messages) }}{{ stat('Open cases', targets.open_cases, 'blue') }}{{ stat('Closed cases', targets.closed_cases) }}
+
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4">
+  <div class="card reveal" style="--i:5">
+    <div class="card-title">{{ icon('activity') }}{{ _('Session health') }}</div>
+    {% if health.total %}{{ donut_chart(health, _('sessions'), L) }}{% else %}{{ empty(_('No sessions yet. Put .session files under sessions/active and scan.'), 'key-round') }}{% endif %}
+    <p class="text-xs faint mt-4">{{ _('Application capacity is not account availability: platform limits still apply.') }}</p>
+  </div>
+  <div class="card reveal" style="--i:6">
+    <div class="card-title">{{ icon('list-checks') }}{{ _('Case pipeline') }}</div>
+    {{ hbars(pipeline, L, _('No cases yet.')) }}
+  </div>
 </div>
-<h2 class="text-sm uppercase text-slate-500 mb-2">Cases (§25)</h2>
-<div class="grid grid-cols-3 lg:grid-cols-9 gap-3 mb-6">
-{% for s in ['Draft','Pending Review','Approved','Ready','Submitted','Awaiting Response','Completed','Failed','Closed'] %}{{ stat(s, cases[s]) }}{% endfor %}
+
+{% call section(_('Sessions'), 'key-round') %}<a class="btn btn-ghost btn-sm" href="/sessions">{{ _('View all') }}{{ icon('chevron-right', 'icon flip-rtl') }}</a>{% endcall %}
+<div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
+  {{ stat(_('Total'), sessions.total, 'accent2', 'layers', 0) }}
+  {{ stat(L('ACTIVE'), sessions.active, 'ok', 'zap', 1) }}
+  {{ stat(L('VALID'), sessions.valid, 'ok', 'circle-check', 2) }}
+  {{ stat(L('BANNED'), sessions.banned, 'bad', 'octagon-x', 3) }}
+  {{ stat(L('INVALID'), sessions.invalid, 'bad', 'x', 4) }}
+  {{ stat(L('EXPIRED'), sessions.expired, 'bad', 'hourglass', 5) }}
+  {{ stat(L('UNAVAILABLE'), sessions.unavailable, 'neutral', 'circle-dot', 6) }}
+  {{ stat(L('CHECK_FAILED'), sessions.check_failed, 'warn', 'triangle-alert', 7) }}
 </div>
-<div class="grid md:grid-cols-3 gap-4">
-<div class="bg-white shadow rounded-lg p-4"><h3 class="font-semibold mb-2">Submissions</h3>
-<ul class="text-sm">{% for k, v in submissions.items() %}<li class="flex justify-between"><span>{{ badge(k) }}</span><span>{{ v }}</span></li>{% endfor %}</ul></div>
-<div class="bg-white shadow rounded-lg p-4"><h3 class="font-semibold mb-2">Session availability</h3>
-<div class="text-3xl">{{ (availability.average_availability*100)|round(1) }}%</div>
-<ul class="text-sm mt-2">{% for k, v in availability.by_health.items() %}<li class="flex justify-between"><span>{{ badge(k) }}</span><span>{{ v }}</span></li>{% endfor %}</ul>
-<p class="text-xs text-slate-500 mt-2">Application capacity ≠ account availability (§37).</p></div>
-<div class="bg-white shadow rounded-lg p-4"><h3 class="font-semibold mb-2">Failure causes (7d)</h3>
-<ul class="text-sm">{% for f in failures %}<li class="flex justify-between"><span>{{ f.category }}</span><span>{{ f.count }}</span></li>{% else %}<li class="text-slate-400">none</li>{% endfor %}</ul></div>
+
+{% call section(_('Targets'), 'crosshair') %}<a class="btn btn-ghost btn-sm" href="/targets">{{ _('View all') }}{{ icon('chevron-right', 'icon flip-rtl') }}</a>{% endcall %}
+<div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
+  {{ stat(_('Total'), targets.total, 'accent2', 'crosshair', 0) }}
+  {{ stat(_('Accounts'), targets.accounts, 'neutral', 'user', 1) }}
+  {{ stat(_('Channels'), targets.channels, 'neutral', 'radar', 2) }}
+  {{ stat(_('Groups'), targets.groups, 'neutral', 'users', 3) }}
+  {{ stat(_('Messages'), targets.messages, 'neutral', 'mail', 4) }}
+  {{ stat(_('Open cases'), targets.open_cases, 'accent', 'folder-open', 5) }}
+  {{ stat(_('Closed cases'), targets.closed_cases, 'neutral', 'archive', 6) }}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+  <div class="card reveal">
+    <div class="card-title">{{ icon('send') }}{{ _('Submissions') }}</div>
+    {% for k, v in submissions.items() %}
+    <div class="list-row">{{ badge(k) }}<span class="num">{{ v }}</span></div>
+    {% endfor %}
+  </div>
+  <div class="card reveal">
+    <div class="card-title">{{ icon('triangle-alert') }}{{ _('Failure causes (7 days)') }}</div>
+    {{ hbars(failure_bars, L, _('No failures recorded in the last 7 days.')) }}
+  </div>
 </div>
 {% endblock %}
